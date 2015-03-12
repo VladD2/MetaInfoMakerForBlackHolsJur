@@ -1,0 +1,49 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.IO.Directory;
+using System.IO.Path;
+using System.Linq;
+using System.Xml.Linq;
+
+using SCG = System.Collections.Generic;
+
+public module Util
+{
+  //public IsEmpty(this str : string) : bool
+  //{
+  //  string.IsNullOrEmpty(str)
+  //}
+
+  public IsEmpty[T](this lst : SCG.IList[T]) : bool
+  {
+    lst.Count == 0
+  }
+  
+  public AddTag(this parent : XElement, name : string, params args : array[object]) : XElement
+  {
+    def tag = XElement(name, args);
+    parent.Add(tag);
+    tag
+  }
+
+  public AddTag2(this parent : XElement, name : string, params args : array[object]) : void
+  {
+    _ = AddTag(parent, name, args);
+  }
+  
+  public AsArray[T](this seq : SCG.IEnumerable[T]) : array[T]
+  {
+    seq.NToArray()
+  }
+  
+  public GetDocFiles(path : string) : array[string]
+  {
+    def docs   = GetFiles(path, "*.doc");
+    def docxs  = GetFiles(path, "*.docx");
+    def result = docs.Concat(docxs).Distinct().OrderBy(x => GetFileNameWithoutExtension(x)).ToArray();
+    result
+  }
+}

@@ -1,0 +1,26 @@
+﻿using System;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using SCG = System.Collections.Generic;
+
+//[Record]
+class Article
+{
+  public FileName         : string { get; set; }
+  public StartPage        : int { get; set; }
+  public PagesCount       : int { get; set; }
+  public EndPage          : int { get; set; }
+  public HeadingRu        : string { get; set; }
+  public HeadingEn        : string { get; set; }
+  public Section          : string { get; set; }
+  public SectionNum       : int { get; set; }
+  public AutorsRu         : SCG.List[string] = SCG.List();
+  public AutorsEn         : SCG.List[string] = SCG.List();
+  public AnnotationRu     : SCG.List[string] = SCG.List();
+  public AnnotationEn     : SCG.List[string] = SCG.List();
+  public KeywordsRu       : string { get; set; }
+  public KeywordsEn       : string { get; set; }
+  public LiteratureListRu : SCG.List[string] = SCG.List();
+  //public LiteratureListEn : SCG.List[string] = SCG.List();
+}

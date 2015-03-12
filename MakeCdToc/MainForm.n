@@ -1,0 +1,227 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Xml;
+using Nemerle.Utility;
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using System.Xml.Linq;
+
+namespace MakeCdToc
+{
+  /// <summary>
+  /// Description of MainForm.
+  /// </summary>
+  public partial class MainForm : Form
+  {
+    _settings : Settings;
+    public this()
+    {
+      InitializeComponent();
+      _settings = Settings.Default;
+      _pathTextBox.Text = _settings.InputXmlPath;
+      _numTextBox.Text = _settings.Num.ToString();
+      _yearTextBox.Text = _settings.Year.ToString();
+      _destPathTextBox.Text = _settings.OutputHtmlPath;
+      UpdateOutputPath();
+    }
+    
+    UpdateOutputPath() : void
+    {
+      _outputFilePathTextBox.Text = IO.Path.Combine(_destPathTextBox.Text, $@"BH-$(_yearTextBox.Text)-$(_numTextBox.Text)\CD\toc.html");
+    }
+  
+    private _makeButton_Click (_sender : object,  _e : System.EventArgs) : void
+    {
+      try
+      {
+        def issueXmlPath = IO.Path.GetFullPath(_pathTextBox.Text);
+        def sourcePath = IO.Path.GetDirectoryName(issueXmlPath);
+        def rincXmlFileName = $"02364964_$(_yearTextBox.Text)_-_$(_numTextBox.Text)_unicode.xml";
+        def sourceRincXmlPath = IO.Path.Combine(sourcePath, rincXmlFileName);
+        def destinationRincXmlPath = IO.Path.Combine(_destPathTextBox.Text, $@"BH-$(_yearTextBox.Text)-$(_numTextBox.Text)\CD\PDF", rincXmlFileName);
+        IO.File.Copy(sourceRincXmlPath, destinationRincXmlPath, true);
+        def html = MakeTocHtml(issueXmlPath);
+        //root.Save(_destPathTextBox.Text);
+        IO.File.WriteAllText(_outputFilePathTextBox.Text, html, Encoding.UTF8);
+        HideError();
+        _ = MessageBox.Show(this, "HTML-файл с содержанием журнала успешно сохранет!");
+      }
+      catch
+      {
+        | e => ShowError("Не удалось записать HTML-файл с содержанием журнала: " + e.Message)
+      }
+    }
+    
+    class Comparer : IEqualityComparer[XElement]
+    {
+      public Equals(x : XElement, y : XElement) : bool
+      {
+        x.Attribute("num").Value == y.Attribute("num").Value
+      }
+      
+      public GetHashCode(obj : XElement) : int
+      {
+        obj.Attribute("num").Value.GetHashCode()
+      }
+    }
+    
+    MakeTocHtml(sorcePath : string) : string
+    {
+      def year = int.Parse(_yearTextBox.Text);
+      def num  = int.Parse(_numTextBox.Text);
+      def doc = XDocument.Load(sorcePath);
+      
+      def articles = doc.Root.Descendants("article");
+      def sections = articles.Descendants("section").Distinct(Comparer()).OrderBy(a => int.Parse(a.Attribute("num").Value)).ToList();
+      def g = articles.GroupBy(a => (a.Element("section").Value, int.Parse(a.Element("section").Attribute("num").Value)));
+      def makeArticleRef(article : XElement) : string
+      {
+        //article.Attribute("lang")?.Value == "RUS")?.Value
+        def title = article.Descendants("arttitle").FirstOrDefault(t => t.Attribute("lang")?.Value == "RUS")?.Value;
+        def url   = article.Element("fpdf")?.Value;
+        $<#<P><A href="PDF/$url">$title</A></P>#>
+      }
+      def toc = sections.Select(s => $<#<A href="#SECTION$(s.Attribute("num").Value)"><B>$(s.Value)</B></A><BR>#>);
+      def body = g.Select(x => $<#<A name="SECTION$(x.Key[1])"></A><H2>$(x.Key[0])</H2>
+        ..$(x; "\r\n"; makeArticleRef)
+      #>);
+          
+      HtmlTemplate(year, num, toc, body)
+    }
+    
+    HtmlTemplate(year : int, num : int, toc : Seq[string], body : Seq[string]) : string
+    {
+$<#<html>
+<head>
+    <title>"«ЧЕРНЫЕ ДЫРЫ» в Российском Законодательстве на CD-ROM"</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet"  type="text/css" href="css/article.css" />
+</head>
+<body>
+  <SCRIPT LANGUAGE="javascript">	function ToggleCode(id){ el=document.all[id];img=document.all[ "img"+id];if(el.style.display=="none"){img.src="CD/images/ls2.gif";el.style.display="";}else{img.src="CD/images/ls1.gif";el.style.display="none";}}</SCRIPT><H1>"«ЧЕРНЫЕ ДЫРЫ» в Российском Законодательстве на CD-ROM"<A href="printv.asp?what=this"></A><BR>
+  <SPAN class="subtitle">Юридический журнал № $num $year г.</SPAN></H1>
+  <P><STRONG>Главный редактор – Чистяков В.В.</STRONG></P>
+  <P><STRONG>Журнал зарегистрирован в Комитете Российской Федерации по печати: ПИ №77-11603 от 18.01.02 г.</STRONG></P>
+  <P><STRONG>Учредитель журнала: ООО «К-Пресс»;</STRONG></P>
+  <P><STRONG>Ген. директор ООО «К-Пресс» Чистяков В.Ю.</STRONG></P>
+  <P><A href="http://www.k-press.ru">www.k-press.ru</A></P>
+  <P>Наш журнал включен в перечень СМИ, рекомендуемых ВАК для научных публикаций (см. Бюллетень № 1 ВАК МО РФ, 2007 г.).</P>
+  <P>Все статьи, публикуемые в журнале проходят внешнее и внутреннее рецензирование. Внешнее рецензирование осуществляется научными руководителями и консультантами авторов статей. Внутреннее рецензирование осуществляется членами редколлегии и редсовета.</P>
+  <TABLE class="note" width="98%">
+    <TR>
+      <TD><B>ПРИМЕЧАНИЕ</B><BR>
+        <P> Внимание!</P>
+        <P>Для чтения  материалов диска требуется установленный<A href="AdobeReader91\AdbeRdr910_ru_RU.exe"> </A>Adobe Reader.</P>
+        <P><A href="AdobeReader91/AdbeRdr910_en_US_Std.exe"><IMG src="CD/images/fileA.gif" border="0" width="28" height="11" align="absmiddle">(Установить Adobe Reader_eng 9.1</A>)</P>
+      </TD>
+    </TR>
+  </TABLE>
+  <H2>Разделы</H2>
+  <DIV style="margin-left:2em">
+    ..$(toc; "\r\n")
+  </DIV>
+  ..$(body; "\r\n")
+  <DIV align="right">
+    <FONT style="font-family:arial;font-size:9pt;color:#8088a0"><I><HR color="#8088a0" width="100%" size="1">
+                Любой из материалов, опубликованных на этом сервере, не может быть воспроизведен в какой бы
+                то ни было форме и какими бы то ни было средствами без письменного разрешения владельцев авторских
+                прав.</I></FONT>
+    </DIV>
+</body>
+</html>
+#>
+    }
+  
+    private _yearTextBox_TextChanged (_sender : object,  _e : System.EventArgs) : void
+    {
+      mutable res;
+      if (int.TryParse(_yearTextBox.Text, out res))
+      {
+        HideError();
+        UpdateOutputPath();
+      }
+      else
+        ShowError("Поле 'Год' должно содержать целое число!");
+    }
+  
+    private _numTextBox_TextChanged (_sender : object,  _e : System.EventArgs) : void
+    {
+      mutable res;
+      if (int.TryParse(_numTextBox.Text, out res))
+      {
+        HideError();
+        UpdateOutputPath();
+      }
+      else
+        ShowError("Поле 'Номер' должно содержать целое число!");
+    }
+  
+    private mutable _numTextBox : System.Windows.Forms.TextBox;
+  
+    private mutable label1 : System.Windows.Forms.Label;
+  
+    private mutable label2 : System.Windows.Forms.Label;
+  
+    private mutable _yearTextBox : System.Windows.Forms.TextBox;
+  
+    private mutable label3 : System.Windows.Forms.Label;
+  
+    private mutable label4 : System.Windows.Forms.Label;
+  
+    private mutable label5 : System.Windows.Forms.Label;
+  
+    private mutable _outputFilePathTextBox : System.Windows.Forms.TextBox;
+  
+    HideError() : void { ShowError(null) }
+    ShowError(msg : string) : void
+    {
+      
+      if (string.IsNullOrWhiteSpace(msg))
+        _errorLabel.Visible = false;
+      else
+      {
+        _errorLabel.Text = msg;
+        _errorLabel.Visible = true;
+      }
+    }
+    
+    private MainForm_FormClosing (_sender : object,  e : System.Windows.Forms.FormClosingEventArgs) : void
+    {
+      try
+      {
+        _settings.InputXmlPath    = _pathTextBox.Text;
+        _settings.Num             = int.Parse(_numTextBox.Text);
+        _settings.Year            = int.Parse(_yearTextBox.Text);
+        _settings.OutputHtmlPath  = _destPathTextBox.Text;
+        _settings.Save();
+        HideError();
+      }
+      catch
+      {
+        | x => 
+          ShowError("Settings save fail: " + x.Message);
+          e.Cancel = true;
+      }
+    }
+  
+    private mutable _errorLabel : System.Windows.Forms.Label;
+  
+    private _destPathTextBox_TextChanged (_sender : object,  _e : System.EventArgs) : void
+    {
+      if (IO.Directory.Exists(_destPathTextBox.Text))
+      {
+        HideError();
+        UpdateOutputPath();
+      }
+      else
+        ShowError("Поле 'Output path' должно содержать путь к каталогу где расположены выпуски журналов!");
+    }
+  }
+}

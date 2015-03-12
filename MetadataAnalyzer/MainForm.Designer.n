@@ -1,0 +1,208 @@
+﻿#pragma warning disable 10001
+
+namespace MetadataAnalyzer
+{
+  public partial class MainForm
+  {
+    /// <summary>
+    /// Required designer variable.
+    /// </summary>
+    private  mutable  components : System.ComponentModel.IContainer = null;
+
+    /// <summary>
+    /// Clean up any resources being used.
+    /// </summary>
+    /// <param name="disposing">
+    /// true if managed resources should be disposed; otherwise, false.
+    /// </param>
+    protected override Dispose(disposing : bool) :  void
+    {
+      when (disposing && components != null)
+        components.Dispose();
+
+      base.Dispose(disposing);
+    }
+
+    /// <summary>
+    /// Required method for Designer support - do not modify
+    /// the contents of this method with the code editor.
+    /// </summary>
+    private InitializeComponent() :  void
+    {
+      this._pathTextBox = System.Windows.Forms.TextBox();
+      this._tabControl = System.Windows.Forms.TabControl();
+      this._errorsTabPage = System.Windows.Forms.TabPage();
+      this._spliter = System.Windows.Forms.SplitContainer();
+      this._grid = System.Windows.Forms.DataGridView();
+      this.Error = System.Windows.Forms.DataGridViewTextBoxColumn();
+      this.Url = System.Windows.Forms.DataGridViewLinkColumn();
+      this.XmlColumn = System.Windows.Forms.DataGridViewTextBoxColumn();
+      this._textBox = System.Windows.Forms.TextBox();
+      this._authorInfoTabPage = System.Windows.Forms.TabPage();
+      this._webBrowser = System.Windows.Forms.WebBrowser();
+      this._tabControl.SuspendLayout();
+      this._errorsTabPage.SuspendLayout();
+      (this._spliter :> System.ComponentModel.ISupportInitialize).BeginInit();
+      this._spliter.Panel1.SuspendLayout();
+      this._spliter.Panel2.SuspendLayout();
+      this._spliter.SuspendLayout();
+      (this._grid :> System.ComponentModel.ISupportInitialize).BeginInit();
+      this._authorInfoTabPage.SuspendLayout();
+      this.SuspendLayout();
+      // 
+      // _pathTextBox
+      // 
+      this._pathTextBox.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
+      this._pathTextBox.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.FileSystemDirectories;
+      this._pathTextBox.Dock = System.Windows.Forms.DockStyle.Top;
+      this._pathTextBox.Location = System.Drawing.Point(0,  0);
+      this._pathTextBox.Name = "_pathTextBox";
+      this._pathTextBox.Size = System.Drawing.Size(1005,  20);
+      this._pathTextBox.TabIndex = 1;
+      this._pathTextBox.Text = "C:\\!\\Jur\\BH\\BH-2015-";
+      // 
+      // _tabControl
+      // 
+      this._tabControl.Controls.Add(this._errorsTabPage);
+      this._tabControl.Controls.Add(this._authorInfoTabPage);
+      this._tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
+      this._tabControl.Location = System.Drawing.Point(0,  20);
+      this._tabControl.Name = "_tabControl";
+      this._tabControl.SelectedIndex = 0;
+      this._tabControl.Size = System.Drawing.Size(1005,  347);
+      this._tabControl.TabIndex = 2;
+      // 
+      // _errorsTabPage
+      // 
+      this._errorsTabPage.Controls.Add(this._spliter);
+      this._errorsTabPage.Location = System.Drawing.Point(4,  22);
+      this._errorsTabPage.Name = "_errorsTabPage";
+      this._errorsTabPage.Padding = System.Windows.Forms.Padding(3);
+      this._errorsTabPage.Size = System.Drawing.Size(997,  321);
+      this._errorsTabPage.TabIndex = 0;
+      this._errorsTabPage.Text = "Список ошибок";
+      this._errorsTabPage.UseVisualStyleBackColor = true;
+      // 
+      // _spliter
+      // 
+      this._spliter.Dock = System.Windows.Forms.DockStyle.Fill;
+      this._spliter.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
+      this._spliter.Location = System.Drawing.Point(3,  3);
+      this._spliter.Name = "_spliter";
+      // 
+      // _spliter.Panel1
+      // 
+      this._spliter.Panel1.Controls.Add(this._grid);
+      // 
+      // _spliter.Panel2
+      // 
+      this._spliter.Panel2.Controls.Add(this._textBox);
+      this._spliter.Size = System.Drawing.Size(991,  315);
+      this._spliter.SplitterDistance = 610;
+      this._spliter.TabIndex = 2;
+      // 
+      // _grid
+      // 
+      this._grid.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+      this._grid.Columns.AddRange(array[
+                  this.Error, 
+                  this.Url, 
+                  this.XmlColumn]);
+      this._grid.Dock = System.Windows.Forms.DockStyle.Fill;
+      this._grid.Location = System.Drawing.Point(0,  0);
+      this._grid.Name = "_grid";
+      this._grid.Size = System.Drawing.Size(610,  315);
+      this._grid.TabIndex = 1;
+      this._grid.CellContentClick += System.Windows.Forms.DataGridViewCellEventHandler(this._grid_CellContentClick);
+      this._grid.RowEnter += System.Windows.Forms.DataGridViewCellEventHandler(this._grid_RowEnter);
+      // 
+      // Error
+      // 
+      this.Error.HeaderText = "Error";
+      this.Error.Name = "Error";
+      this.Error.Width = 250;
+      // 
+      // Url
+      // 
+      this.Url.HeaderText = "Url";
+      this.Url.Name = "Url";
+      this.Url.ReadOnly = true;
+      this.Url.Width = 300;
+      // 
+      // XmlColumn
+      // 
+      this.XmlColumn.HeaderText = "Xml";
+      this.XmlColumn.Name = "XmlColumn";
+      this.XmlColumn.Visible = false;
+      // 
+      // _textBox
+      // 
+      this._textBox.Dock = System.Windows.Forms.DockStyle.Fill;
+      this._textBox.Location = System.Drawing.Point(0,  0);
+      this._textBox.Multiline = true;
+      this._textBox.Name = "_textBox";
+      this._textBox.ScrollBars = System.Windows.Forms.ScrollBars.Both;
+      this._textBox.Size = System.Drawing.Size(377,  315);
+      this._textBox.TabIndex = 2;
+      this._textBox.WordWrap = false;
+      // 
+      // _authorInfoTabPage
+      // 
+      this._authorInfoTabPage.Controls.Add(this._webBrowser);
+      this._authorInfoTabPage.Location = System.Drawing.Point(4,  22);
+      this._authorInfoTabPage.Name = "_authorInfoTabPage";
+      this._authorInfoTabPage.Padding = System.Windows.Forms.Padding(3);
+      this._authorInfoTabPage.Size = System.Drawing.Size(997,  321);
+      this._authorInfoTabPage.TabIndex = 1;
+      this._authorInfoTabPage.Text = "Авторы";
+      this._authorInfoTabPage.UseVisualStyleBackColor = true;
+      // 
+      // _webBrowser
+      // 
+      this._webBrowser.Dock = System.Windows.Forms.DockStyle.Fill;
+      this._webBrowser.Location = System.Drawing.Point(3,  3);
+      this._webBrowser.MinimumSize = System.Drawing.Size(20,  20);
+      this._webBrowser.Name = "_webBrowser";
+      this._webBrowser.Size = System.Drawing.Size(991,  315);
+      this._webBrowser.TabIndex = 0;
+      // 
+      // MainForm
+      // 
+      this.AutoScaleDimensions = System.Drawing.SizeF(6f,  13f);
+      this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+      this.ClientSize = System.Drawing.Size(1005,  367);
+      this.Controls.Add(this._tabControl);
+      this.Controls.Add(this._pathTextBox);
+      this.Name = "MainForm";
+      this.Text = "Metadata Analyzer";
+      this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
+      this.Load += System.EventHandler(this.MainForm_Load);
+      this._tabControl.ResumeLayout(false);
+      this._errorsTabPage.ResumeLayout(false);
+      this._spliter.Panel1.ResumeLayout(false);
+      this._spliter.Panel2.ResumeLayout(false);
+      this._spliter.Panel2.PerformLayout();
+      (this._spliter :> System.ComponentModel.ISupportInitialize).EndInit();
+      this._spliter.ResumeLayout(false);
+      (this._grid :> System.ComponentModel.ISupportInitialize).EndInit();
+      this._authorInfoTabPage.ResumeLayout(false);
+      this.ResumeLayout(false);
+      this.PerformLayout();
+    }
+  
+  
+    private mutable _spliter : System.Windows.Forms.SplitContainer;
+  
+    private mutable _grid : System.Windows.Forms.DataGridView;
+  
+    private mutable _textBox : System.Windows.Forms.TextBox;
+  
+    private mutable Error : System.Windows.Forms.DataGridViewTextBoxColumn;
+  
+    private mutable Url : System.Windows.Forms.DataGridViewLinkColumn;
+  
+    private mutable XmlColumn : System.Windows.Forms.DataGridViewTextBoxColumn;
+  
+    private mutable _pathTextBox : System.Windows.Forms.TextBox;
+  }
+}

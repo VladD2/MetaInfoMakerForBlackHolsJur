@@ -1,0 +1,62 @@
+﻿using System;
+using System.Console;
+using Nemerle.Utility;
+using System.Text;
+//using System.Collections.Generic;
+using Nemerle.Collections;
+using System.IO;
+using System.IO.Path;
+using System.IO.FileAttributes;
+
+module Translit
+{
+  _rusMap : Hashtable[char, string] = Hashtable();
+  
+  this()
+  {
+    def engs = array["A", "B", "V", "G", "D", "E", "Zh", "Z", "I", "J", 
+      "K", "L", "M", "N", "O", "P", "R", "S", "T", "U", "F", "H", "C", 
+      "Ch", "Sh", "W", "##", "Y", "''", "Je", "Ju", "Ja", "a", "b", "v", 
+      "g", "d", "e", "zh", "z", "i", "j", "k", "l", "m", "n", "o", "p", "r", 
+      "s", "t", "u", "f", "h", "c", "ch", "sh", "w", "#", "y", "'", "je", "ju", "ja", "-"];
+    def russ = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя ";
+    foreach (i in [0 .. russ.Length - 1])
+      _rusMap[russ[i]] = engs[i];
+  }
+  
+  public Transliterate(input : string) : string
+  {
+    def sb = StringBuilder();
+    
+    foreach (c in input)
+      match (_rusMap.TryGetValue(c))
+      {
+        | (ec, true) => _ = sb.Append(ec);
+        | _          => _ = sb.Append(c)
+      }
+  
+    sb.ToString()
+  }
+  
+  public TransliterateDir(path : string) : void
+  {
+    WriteLine($@"---- Transliterate files in '$path' ----");
+    
+    def files = Util.GetDocFiles(path);
+    
+    foreach (file when !(File.GetAttributes(file) %&& Hidden) in files)
+    {
+      def name = GetFileName(file);
+      def dir = GetDirectoryName(file);
+      def newName = Transliterate(name);
+      when (name != newName)
+      {
+        def newFilePath = Combine(dir, newName);
+        WriteLine($"$file  -> $newName");
+        File.Move(file, newFilePath);
+      }
+    }
+    
+    WriteLine("------------------------------------------------------------------");
+  }
+}

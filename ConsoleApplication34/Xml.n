@@ -1,0 +1,332 @@
+﻿using System;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using System.Xml.Linq;
+using System.Text.RegularExpressions;
+using Nemerle.Imperative;
+using SCG = System.Collections.Generic;
+using Tag = System.Xml.Linq.XElement;
+using Attr = System.Xml.Linq.XAttribute;
+
+module Xml
+{
+  class AutorInfoRecord
+  {
+    public mutable Eng : int;
+    public mutable Rus : int;
+  }
+  //_AutorCrekerRx : Regex = Regex(
+  //  @"([^,]+)(,\s*[к|д]\s*\.\w\s*\.н\.)?(,.*)?\s*", 
+  //  RegexOptions.Compiled | RegexOptions.IgnoreCase);
+  MakeRegex(prefix : string) : Regex
+  {
+    def prefix2 = prefix.Replace(" ", @"\s+");
+    Regex($@"\s*$prefix2\s*\:\s*(.+?\.)\s*(?:(?:(?:\w-\w+|\w+(?:\s+\w+)*)\s*\:)|$$)", RegexOptions.Compiled | RegexOptions.IgnoreCase)
+  }
+  
+  _AutorCrekerRx : Regex = Regex(@"([^,.]+(?:\.\s*\w\.)?)[,.]?\s*(.*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+   
+  _regExs : Hashtable[string, string * Regex * int] = Hashtable();
+  
+  AddRx(prefix : string, tagName : string, tagId : int) : void
+  {
+    _regExs.Add(prefix, (tagName, MakeRegex(prefix), tagId));
+  }
+  
+  this()
+  {
+    AddRx("Место работы",        "auwork", 0);
+    AddRx("Место учебы",         "auwork", 1);
+    AddRx("Адрес",               "auadr",  2);
+    
+    AddRx("Place of employment", "auwork", 0);
+    AddRx("Place of study",      "auwork", 1);
+    AddRx("Address",             "auadr",  2);
+    
+    AddRx("e-mail",              "auemail", 3);
+  }
+
+  _keywordsRemoveRx : Regex = Regex(
+    @"\s*(?:Ключевые\s+слова\s*[\:\.;]|Key\s*word(?:s)?\s*[\:\.;])\s*", 
+    RegexOptions.Compiled | RegexOptions.IgnoreCase);
+   
+  public MakeXml(articles : SCG.IEnumerable[Article], jurYear : string, jurNum : string) : XElement
+  {
+    def trim(str : string)
+    {
+      str.Trim(',', ' ', '\t', '\r', '\n')
+    }
+    def trimRx = Regex(@"(\d+\s*\.\s*)*(.*)", RegexOptions.Compiled);
+    def trimNum(str : string)
+    {
+      trimRx.Match(str.Trim(',', ' ', '\t', '\r', '\n')).Groups[2].Value
+    }
+    def error(msg : string)
+    {
+      Console.ForegroundColor = ConsoleColor.Red;
+      Console.WriteLine(msg);
+      Console.ResetColor();
+    }
+    def articleToXml(article : Article) : XElement
+    {
+      def file = article.FileName;
+      def tag = Tag("article", array[
+        Tag("fpageart", article.StartPage),
+        Tag("lpageart", article.EndPage),
+        ]);
+        
+      def remPrefix(prefix, str : string)
+      {
+        def res = if (str.StartsWith(prefix)) str.Substring(prefix.Length) else str;
+        res.Trim()
+      }
+      def rem2Prefix(prefix1, prefix2, str : string)
+      {
+        def res1 = remPrefix(prefix1, str);
+        def res2 = remPrefix(prefix2, res1);
+        res2
+      }
+      def makeAutors()
+      {
+        unless (article.AutorsRu.IsEmpty() && article.AutorsEn.IsEmpty())
+        {
+          def autorsEnExists = !article.AutorsEn.IsEmpty();
+          if (!autorsEnExists)
+          {
+            article.AutorsEn.AddRange(array(article.AutorsRu.Count));
+            error($"В статье $file.doc не задан список авторов на анклийском языке.");
+          }
+          else when (article.AutorsEn.Count != article.AutorsRu.Count)
+          {
+            def enCount = article.AutorsEn.Count;
+            def ruCount = article.AutorsRu.Count;
+            error($"В статье $file.doc количество авторов на английском ($enCount) отличается от количества ватовро на русском ($ruCount).");
+            article.AutorsRu.Iter(Console.WriteLine);
+            Console.WriteLine("------------------------------------------------");
+            article.AutorsEn.Iter(Console.WriteLine);
+            Console.WriteLine("------------------------------------------------");
+            // Reset article.AutorsEn
+            article.AutorsEn.Clear();
+            article.AutorsEn.AddRange(array(article.AutorsRu.Count));
+          }
+          def authors = Tag("authors");
+          tag.Add(authors);
+          def autorsZip = article.AutorsRu.ZipToArray(article.AutorsEn);
+          mutable index = 0;
+          foreach ((ruAutor, enAutor) in autorsZip)
+          {
+            index++;
+            def autor = authors.AddTag("author", Attr("authornum", index));
+            def autorInfo = array[AutorInfoRecord(), AutorInfoRecord(), AutorInfoRecord(), AutorInfoRecord()];
+
+            def addAutor(autorStr : string, lang : string) : void
+            {
+              def str1 = if (autorStr.EndsWith('\r'))
+                           autorStr.Remove(autorStr.Length - 1, 1)
+                         else autorStr;
+              def str2 = if (str1.EndsWith('.')) str1 else str1 + ".";
+              def str3 = Regex.Replace(str2, "[ЕеEe]-? *m[АаAa]il", "e-mail");
+              // Заменяем руские буквы в английском описании.
+              def str4 = if (lang == "ENG") str3.Replace('А', 'A').Replace('а', 'a')
+                            .Replace('Е', 'E').Replace('е', 'e').Replace('Н', 'H')
+                         else str3;
+                        
+              def m = _AutorCrekerRx.Match(str4);
+              unless (m.Success)
+                return;
+              def inf   = autor.AddTag("individInfo", Attr("lang", lang));
+              def name  = trim(m.Groups[1].Value);
+              def auinf = trim(m.Groups[2].Value.TrimStart(array[',', ' ', '.']));
+              
+              def tagValueMap = Hashtable();
+              
+              def addTag(prefix) : void
+              {
+                def str = auinf;
+                def (tagName, regEx, tagId) = _regExs[prefix];
+                def m2 = regEx.Match(str);
+                when (m2.Success)
+                {
+                  tagValueMap[tagName] = m2.Groups[1].Value.Trim(array[' ', '.']);
+                  if (lang == "RUS") autorInfo[tagId].Rus++;
+                  else               autorInfo[tagId].Eng++;
+                }
+              }
+
+              if (lang == "RUS")
+              {
+                addTag("Место учебы");
+                addTag("Место работы");
+                addTag("Адрес");
+              }
+              else
+              {
+                addTag("Place of study");
+                addTag("Place of employment");
+                addTag("Address");
+              }
+
+              addTag("e-mail");
+              
+              def space = name.IndexOf(' ');
+              def surname = if (space < 1) name else name.Substring(0, space);
+              def fname   = if (space < 1) "" else name.Substring(space).Trim();
+
+              inf.Add(Tag("surname", surname));
+              
+              unless (fname.IsEmpty())
+                inf.Add(Tag("fname",  fname));
+
+              unless (auinf.IsEmpty())
+                inf.Add(Tag("auinf",  auinf));
+                
+              foreach ((key, val) when !val.IsEmpty() in tagValueMap.KeyValuePairs)
+                inf.Add(Tag(key, val));
+            }
+            
+            unless (ruAutor.IsEmpty())
+              addAutor(ruAutor, "RUS");
+            unless (enAutor.IsEmpty())
+              addAutor(enAutor, "ENG");
+              
+            def checkAutorInfos(autorInfo)
+            {
+              foreach (tagId in [0 .. 3]) // проверяем совподение количества описаний.
+              {
+                def row = autorInfo[tagId];
+                when (row.Eng != row.Rus)
+                {
+                  def tags = _regExs.KeyValuePairs.MapLazyFiltered((name, (_, _, tag_id)) => (tag_id == tagId, name));
+                  Console.ForegroundColor = ConsoleColor.Red;
+                  Console.WriteLine($"File $(article.FileName).doc содержит несовпадающее количество тегов: ..$tags ($(row.Rus) и $(row.Eng))");
+                  Console.ResetColor();
+                }
+              }
+            }
+            
+            when (autorsEnExists)
+              checkAutorInfos(autorInfo);
+          }
+        }
+      }
+      def makeTitles()
+      {
+        when (article.HeadingRu == null)
+        {
+          throw ApplicationException($"Критическая ошибка! В файле $(article.FileName).doc не задан заголовок на русском языке.");
+        }
+        def arttitles = tag.AddTag("arttitles");
+        arttitles.AddTag2("arttitle", Attr("lang", "RUS"), trimNum(article.HeadingRu));
+        unless (article.HeadingEn.IsEmpty())
+          arttitles.AddTag2("arttitle", Attr("lang", "ENG"), trim(article.HeadingEn));
+      }
+      def makeSection()
+      {
+        when (!string.IsNullOrWhiteSpace(article.Section))
+        {
+          tag.AddTag2("section", XAttribute("num", article.SectionNum), trimNum(article.Section));
+        }
+      }
+      def makeLit()
+      {
+        def refs = SCG.List(article.LiteratureListRu);
+        //refs.AddRange(article.LiteratureListEn);
+        
+        if (refs.IsEmpty())
+          tag.AddTag2("nobiblist", "");
+        else
+        {
+          def biblist = tag.AddTag("biblist");
+          foreach (blistpart in refs)
+            biblist.AddTag2("blistpart", trim(blistpart));
+        }
+      }
+      def makeAbstract()
+      {
+        def concat(lst) { rem2Prefix("Annotation:", "Аннотация:", $<#..$(lst; "\n"; trim)#>) }
+        if (article.AnnotationRu.IsEmpty() && article.AnnotationEn.IsEmpty())
+        {
+          error($"В статье $file.doc не задана аннотация (ни на одном языке).");
+          tag.AddTag2("noabstracts", "");
+        }
+        else
+        {
+          when (article.AnnotationRu.IsEmpty())
+            error($"В статье $file.doc не задана аннотация на русском языке.");
+          when (article.AnnotationEn.IsEmpty())
+            error($"В статье $file.doc не задана аннотация на английском языке.");
+          
+          def abstracts = tag.AddTag("abstracts");
+          abstracts.AddTag2("abstract", Attr("lang", "RUS"), concat(article.AnnotationRu));
+          unless (article.HeadingEn.IsEmpty())
+            abstracts.AddTag2("abstract", Attr("lang", "ENG"), concat(article.AnnotationEn));
+        }
+      }
+      def makeKeywords()
+      {
+        if (article.KeywordsRu.IsEmpty() && article.KeywordsEn.IsEmpty())
+        {
+          error($"В статье $file.doc не заданы ключевые слова (ни на одном языке).");
+          tag.AddTag2("nokeywords", "");
+        }
+        else
+        {
+          def parseKeywords(keywords : string) : SCG.IEnumerable[string] 
+          {
+            def trim(str) { str.Trim(',', ' ', '\t', '\r', '\n', '.', ';', '«', '»') }
+            def kws = keywords.SplitToList(',', ';');
+            match (kws)
+            {
+              | first :: seconds => 
+                trim(_keywordsRemoveRx.Replace(first, "")) :: seconds.Map(trim)
+              | _ => kws
+            }
+          }
+          def keywords = tag.AddTag("keywords");
+          if (article.KeywordsRu.IsEmpty())
+            error($"В статье $file.doc не заданы ключевые слова на русском языке.");
+          else
+          {
+            def kwdGroupRu = keywords.AddTag("kwdGroup", Attr("lang", "RUS"));
+            foreach (kwd in parseKeywords(article.KeywordsRu))
+              kwdGroupRu.AddTag2("keyword", trim(kwd));
+          }
+          if (article.KeywordsEn.IsEmpty())
+            error($"В статье $file.doc не заданы ключевые слова на английсоком языке.");
+          else
+          {
+            def kwdGroupEn = keywords.AddTag("kwdGroup", Attr("lang", "ENG"));
+            foreach (kwd in parseKeywords(article.KeywordsEn))
+              kwdGroupEn.AddTag2("keyword", trim(kwd));
+          }
+        }
+      }
+      makeAutors();
+      makeTitles();
+      makeSection();
+      makeAbstract();
+      makeKeywords();
+      makeLit();
+      tag.AddTag2("fpdf", article.FileName + ".pdf");
+        
+      tag
+    }
+    def xml = articles.Map(articleToXml);
+    def firstPage = articles.NFirst().StartPage;
+    def lastArticle = articles.NLast();
+    def lastPage  = lastArticle.StartPage + lastArticle.PagesCount - 1;
+    def root = XElement.Parse($<#
+    <issue>
+      <issn>0236-4964</issn>
+      <jrncode jcountry="ru">02364964</jrncode>
+      <jnumUni>$jurNum</jnumUni>
+      <jdateUni>$jurYear</jdateUni>
+      <pages>$firstPage-$lastPage</pages>
+    </issue>
+    #>);
+    
+    root.Add(xml.ToArray());
+    root
+  }
+}

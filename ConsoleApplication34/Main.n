@@ -1,0 +1,240 @@
+﻿using Nemerle.Utility;
+using Nemerle.Late;
+using Nemerle.Imperative;
+
+using System;
+using System.Console;
+using System.IO;
+using System.IO.Path;
+using System.IO.Directory;
+using System.Linq;
+using System.IO.FileAttributes;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+using SCG = System.Collections.Generic;
+using Word = Microsoft.Office.Interop.Word;
+
+module Program
+{
+  _app : object = LateEx.CreateObject("Word.Application");
+  
+  //public GetStyle(this doc : Word.Document, style : string) : Word.Style
+  //{
+  //  mutable index = style : object;
+  //  doc.Styles.get_Item(ref index)
+  //}
+  BadChars : string = string($[0 .. 0x20].MapToArray(c => c :> char));
+  
+  [STAThread]
+  Main(mutable args : array[string]) : void
+  {
+    mutable forTestOnly = false;
+    
+    when (args.Length != 1 || !Exists(args[0]))
+    {
+      //forTestOnly = true;
+      def fileName = GetFileName(Uri(System.Reflection.Assembly.GetCallingAssembly().CodeBase).LocalPath);
+      WriteLine($"usage: $fileName path-to-doc-files");
+      //WriteLine("...");
+      def dlg = OpenFileDialog();
+      dlg.DefaultExt = ".doc";
+      dlg.CheckFileExists = false;
+      dlg.CheckPathExists = true;
+      dlg.Multiselect     = false;
+      //dlg.Filter = "";
+      
+      if (dlg.ShowDialog() == DialogResult.OK)
+        args = array[IO.Path.GetDirectoryName(dlg.FileName)];
+      else
+      {
+        _ = ReadLine();
+        return;
+      }
+    }
+      
+    //def path = @"D:\RINC\bhCD2009_1\docs\03_06_Zolotareva.doc";
+    def timer   = Diagnostics.Stopwatch.StartNew();
+    def path    = args[0];
+    def numRx   = Text.RegularExpressions.Regex(@".+\\\w+-(\d\d\d\d)-(\d)\\?");
+    def res     = numRx.Match(path);
+    assert3(res.Success);
+    def jurYear = res.Groups[1].Value;
+    def jurNum  = res.Groups[2].Value;
+    
+    unless (forTestOnly)
+      Translit.TransliterateDir(path);
+      
+    def articles = SCG.List();
+    mutable prevLastPage = 0;//Constants.FirstPageNumber - 1;
+    mutable section = "";
+    mutable sectionNum = 0;
+    
+    def makeMetaForArticle(doc : Word.Document, isArticle : bool) : void
+    {
+      WriteLine(doc.Name);
+      
+      def article = Article();
+      
+      when (isArticle)
+        articles.Add(article);
+        
+      article.FileName = GetFileNameWithoutExtension(doc.Name);
+      
+      when (isArticle)
+      foreach (p :> Word.Paragraph in doc.Paragraphs)
+      {
+        def style = (p.Style :> Word.Style).NameLocal;
+        def sb = Text.StringBuilder(p.Range.Text);
+        // Заменяем недопустимые в XML символы на пробелы (обычно это символы форматирования вроде разрыва строки).
+        foreach (c in BadChars)
+          _ = sb.Replace(c, ' ');
+
+        def text = sb.ToString().Trim('\n', '\r', '\t', ' ');
+        
+        match (style)
+        {
+          | "Заголовок 2" | "Heading 2" => article.HeadingRu = text;
+          | "Заголовок 1" | "Heading 1" =>
+            def curText = text.Trim();
+            when (!string.IsNullOrEmpty(curText))
+            {
+              sectionNum++;
+              section = curText;
+            }
+            
+          | "Heading 2 En"              => article.HeadingEn = text;
+          | "AutorRu"          => article.AutorsRu.Add(text);
+          | "AutorEn"          => article.AutorsEn.Add(text);
+          | "AnnotationRu"     => article.AnnotationRu .Add(text);
+          | "AnnotationEn"     => article.AnnotationEn.Add(text);
+          | "KeywordsRu"       => article.KeywordsRu = text;
+          | "KeywordsEn"       => article.KeywordsEn = text;
+          | "LiteratureListRu" => article.LiteratureListRu.Add(text);
+          //| "LiteratureListEn" => article.LiteratureListEn.Add(text);
+          | _ => ()
+        }
+        
+        article.Section    = section;
+        article.SectionNum = sectionNum;
+      }
+      
+      def calcPagest(doc)
+      {
+        def r = Enumerable.First(doc.Windows.Cast.[Word.Window]()).Selection.Range;
+
+        doc.Repaginate();
+        def field = late(doc.Fields.Add(Range=r, 
+                         Type=Word.WdFieldType.wdFieldEmpty, Text="NUMPAGES  ", 
+                         PreserveFormatting=true)) :> Word.Field;
+        def pages = int.Parse(field.Result.Text);
+        _ = late doc.Undo();
+        
+        article.StartPage = prevLastPage + 1;
+        article.PagesCount = pages;
+        article.EndPage = prevLastPage + pages;
+        prevLastPage = article.EndPage;
+        
+        doc.Sections.First.Headers
+          .Item(Word.WdHeaderFooterIndex.wdHeaderFooterFirstPage)
+          .PageNumbers.StartingNumber = article.StartPage;
+      }
+      
+      calcPagest(doc);
+      
+      //doc.Save();
+   }
+     
+    try
+    {
+      def files = Util.GetDocFiles(path);
+      
+      foreach (file when !(File.GetAttributes(file) %&& Hidden) in files with i)
+      {
+        def doc = late (_app.Documents.Open(file, ReadOnly=true, AddToRecentFiles=false, Visible=true)) :> Word.Document;
+        mutable activePrinter = null;
+        try 
+        { 
+          makeMetaForArticle(doc, i > 1 && i < files.Length - 1);
+
+          unless (forTestOnly)
+          {
+            activePrinter = late _app.ActivePrinter;
+            _ = late _app.ActivePrinter = "Adobe PDF";
+            _ = late doc.PrintOut(Background = false);
+          }
+        }
+        finally 
+        {
+          unless (forTestOnly)
+            _ = late _app.ActivePrinter = activePrinter;
+          _ = late(doc.Undo());
+          _ = late doc.Close(Word.WdSaveOptions.wdDoNotSaveChanges);
+          _ = Marshal.ReleaseComObject(doc);
+        }
+      }
+      
+      def articles2 = articles; //.OrderBy(a => a.StartPage).AsArray();
+      
+      when (articles2.IsEmpty())
+        throw ApplicationException("Не найдено ни одной статьи!");
+      
+      articles2.Last().EndPage = articles2.Last().StartPage + 1;
+        
+      def result = Xml.MakeXml(articles2, jurYear, jurNum);
+      
+      /// Проверяет не содержится ли в ХМЛ ошибок приводящих к 
+      /// исключениям при преобразовании в текст.
+      def check(root)
+      {
+        foreach (el in root.Descendants())
+        {
+          try 
+          { 
+            _ = el.ToString();
+          }
+          catch 
+          { | e =>  
+              Console.ForegroundColor = ConsoleColor.DarkBlue;
+              WriteLine($"XML conversions error: $(e.Message)");
+              WriteLine($" Name '$(el.Name)' Content: '$(el.Value)'");
+              WriteLine();
+              Console.ResetColor();
+              check(el);
+          }
+        }
+      }
+      check(result);
+      def resultText = result.ToString();
+      File.WriteAllText("issue.xml", resultText, Text.Encoding.Unicode);
+      def rincTemplateFileName = "02364964_TEMPLATE_unicode.xml";
+      def rincTemplate = File.ReadAllText(rincTemplateFileName, Text.Encoding.Unicode);
+      def dateTime     = DateTime.Now;
+      def dateTimeText = dateTime.ToString("yyyy-MM-dd_HH:mm:ss");
+      def rincText     = rincTemplate.Replace("{content}", resultText).Replace("{date-time}", dateTimeText);
+      def rincFileName = $"02364964_$(jurYear)_-_$(jurNum)_unicode.xml";
+      File.WriteAllText(rincFileName, rincText, Text.Encoding.Unicode);
+    }
+    catch { | e => WriteLine($"Исключение: $(e.Message)") }
+    finally 
+    {
+      _ = late _app.Quit(0/*wdDoNotSaveChanges */);
+      _ = Marshal.ReleaseComObject(_app); // освобождаем ссылку на COM-объект
+    }
+
+    WriteLine($"Обработка завершена за: $(timer.Elapsed)");
+    WriteLine("...");
+    _ = ReadLine();
+    
+  }
+}
+
+  module LateEx
+  {
+    public CreateObject(progId : string) : object
+    {
+      Threading.Thread.CurrentThread.CurrentCulture = 
+        Globalization.CultureInfo("en-US");
+      Activator.CreateInstance(Type.GetTypeFromProgID(progId));
+    }
+  }

@@ -1,0 +1,204 @@
+﻿using Nemerle.Collections;
+using Nemerle.Imperative;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Xml;
+using System.Xml.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace MetadataAnalyzer
+{
+  /// <summary>
+  /// Description of MainForm.
+  /// </summary>
+  public partial class MainForm : Form
+  {
+    mutable _path : string = @"C:\!\Jur\BH\BH-2013-";
+  
+    public this()
+    {
+      InitializeComponent();
+      _path = _pathTextBox.Text;
+      _pathTextBox.KeyUp += OnKeyPress;
+    }
+  
+    private MainForm_Load (_sender : object,  _e : EventArgs) : void
+    {
+    }
+    
+    private DoWork() : void
+    {
+      def gerRusInfo(author : XElement, lang : string) : XElement
+      {
+        author.Elements("individInfo").FirstOrDefault(x => x.Attribute("lang")?.Value == lang)
+      }
+      def pdfUrlTDoc(fileName : string) : string
+      {
+        def result = Path.ChangeExtension(fileName, ".doc");
+        when (File.Exists(Path.Combine(_path, @"CD\DOC", result)))
+          return result;
+        
+        def result2 = Path.ChangeExtension(fileName, ".docx");
+        assert2(File.Exists(Path.Combine(_path, @"CD\DOC", result2)));
+        result2
+      }
+      def gerUrlFromArticle(author : XElement) : string
+      {
+        pdfUrlTDoc(author.Element("fpdf")?.Value)
+      }
+      def gerUrlFromAuthor(author : XElement) : string
+      {
+        pdfUrlTDoc(author.Parent.Parent.Element("fpdf")?.Value)
+      }
+      def doc = XDocument.Load(@"C:\!\Automation\MetaInfoMakerForBlackHolsJur\ConsoleApplication34\bin\Debug\issue.xml");
+      def authors  = doc.Root.Elements("article").Elements("authors").Elements("author").NToArray();
+      def articles = doc.Root.Elements("article").NToArray();
+
+      def addAuthorError(lang : string, tag : string, rusInfo : string, enuInfo : string) : void
+      {
+        def text =
+          if (lang == "RUS") 
+            rusInfo
+          else 
+            enuInfo;
+          def authorWoAuwork = authors.Where(a => gerRusInfo(a, lang)?.Element(tag) == null);
+          foreach (author in authorWoAuwork)
+          {
+            if (author.Parent.Elements("author").All(a => gerRusInfo(a, lang)?.Element(tag) == null))
+              _ = _grid.Rows.Add(text, gerUrlFromAuthor(author), gerRusInfo(author, lang));
+            else
+            {
+              ();
+            }
+          }
+      }
+      def addAuthorWoAuwork(lang : string) : void
+      {
+        addAuthorError(lang, "auwork", <#Автор без Место работы:#>,
+                                       <#Автор без Place of employment:#>)
+      }
+      def addAuthorWoEmail(lang : string) : void
+      {
+        addAuthorError(lang, "auemail", <#Отсутствует "E-mail" в русских метаданных#>,
+                                        <#Отсутствует "E-mail" в английских метаданных"#>)
+      }
+      
+      addAuthorWoAuwork("RUS");
+      addAuthorWoAuwork("ENG");
+
+      addAuthorWoEmail("RUS");
+      addAuthorWoEmail("ENG");
+      
+      foreach (article when article.Element("nobiblist") != null in articles)
+        _ = _grid.Rows.Add("Нет списка литературы", gerUrlFromArticle(article), article);
+      
+      _grid.Sort(Url, ComponentModel.ListSortDirection.Ascending);
+      
+      FillAuthorInfos(authors);
+    }
+    
+    FillAuthorInfos(authors : array[XElement]) : void
+    {
+      def html = XElement("table");
+
+      def template = <#
+    <html>
+      <head>
+        <title> Оформляем сообщения красиво  - RSDN</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge"> 
+        <meta name="application-name" content="RSDN">
+        <meta name="msapplication-tooltip" content="Russian Software Developer Network">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <link rel="stylesheet"  type="text/css" href="http://rsdn.ru/css/article.css" />
+      </head>
+      <body>
+        {content}
+      </body>
+    </html>
+      #>;
+
+      def header = XElement("tr");
+      header.Add(XElement("th", "surname"));
+      header.Add(XElement("th", "fname"));
+      header.Add(XElement("th", "auwork"));
+      header.Add(XElement("th", "auemail"));
+      header.Add(XElement("th", "auinf"));
+      
+      foreach (author in authors)
+      {
+        def tr = XElement("tr");
+        def article = author.Parent.Parent;
+        def inf = author.Elements("individInfo").FirstOrDefault(inf => inf.Attribute("lang")?.Value == "RUS");
+        if (inf == null)
+        {
+          def lineInfo = author : IXmlLineInfo;
+          tr.Add(XElement("td", lineInfo.LineNumber + "," + lineInfo.LinePosition  + ": Нет информации об авторе нра русском языке."));
+        }
+        else
+        {
+          tr.Add(XElement("td", inf.Element("surname")?.Value : object ?? XElement("b", "<<Не задан!>>")));
+          tr.Add(XElement("td", inf.Element("fname")  ?.Value : object ?? XElement("b", "<<Не задан!>>")));
+          tr.Add(XElement("td", inf.Element("auwork") ?.Value : object ?? XElement("b", "<<Не задан!>>")));
+          tr.Add(XElement("td", inf.Element("auemail")?.Value : object ?? XElement("b", "<<Не задан!>>")));
+          tr.Add(XElement("td", inf.Element("auinf")  ?.Value : object ?? XElement("b", "<<Не задан!>>")));
+        }
+        def title = article.Element("arttitles").Elements("arttitle").FirstOrDefault(inf => inf.Attribute("lang")?.Value == "RUS")?.Value;
+        tr.Add(XElement("td", title));
+        def pdf = article.Element("fpdf")?.Value;
+        tr.Add(XElement("td", pdf));
+        def biblistLen = article.Element("biblist")?.Elements("blistpart")?.Count();
+        tr.Add(XElement("td", if (biblistLen > 0) biblistLen : object else XElement("b", 0)));
+        
+        html.Add(tr);
+      }
+      
+      def text = template.Replace("{content}", html.ToString());
+      _webBrowser.DocumentText = text;
+    }
+    
+    private _grid_RowEnter(_sender : object,  e : DataGridViewCellEventArgs) : void
+    {
+      def row = _grid.Rows[e.RowIndex];
+      _textBox.Text = row.Cells[XmlColumn.Index].Value?.ToString() ?? "";
+    }
+  
+    private _grid_CellContentClick (_sender : object,  e : System.Windows.Forms.DataGridViewCellEventArgs) : void
+    {
+      when (e.ColumnIndex == Url.Index && e.RowIndex >= 0)
+      {
+        def row = _grid.Rows[e.RowIndex];
+        def cell = row.Cells[Url.Index];
+        def url = cell.Value?.ToString() ?? "";
+        _ = Diagnostics.Process.Start(Path.Combine(_path, @"CD\DOC", url));
+      }
+    }
+    
+    private OnKeyPress(_sender : object, e : KeyEventArgs) : void
+    {
+      when (e.KeyCode == Keys.Return)
+      {
+        _path = _pathTextBox.Text;
+        DoWork();
+      }
+    }  
+  
+    private mutable _tabControl : System.Windows.Forms.TabControl;
+  
+    private mutable _errorsTabPage : System.Windows.Forms.TabPage;
+  
+  
+    private mutable _authorInfoTabPage : System.Windows.Forms.TabPage;
+  
+    private mutable _webBrowser : System.Windows.Forms.WebBrowser;
+  }
+}

@@ -1,0 +1,45 @@
+﻿using System;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using SCG = System.Collections.Generic;
+
+[StringTemplate.StringTemplateGroup]
+class ArticleStrinTemplate
+{
+  DoArticles(articles : SCG.IEnumerable[Article]) : string {<#
+  <issue>
+    <issn>0234-6621</issn>
+    <jrncode jcountry="ru">02346621</jrncode>
+    <jnumUni>20084
+    </jnumUni>
+    <jdateUni>200824/2008
+    </jdateUni>
+    <pages>3-72</pages>
+    ..$(articles; "\n"; DoArticle)
+  </issue>
+  #>}
+
+  DoArticle(article : Article) : string {<#
+  <article>
+    <fpageart>$(article.StartPage)</fpageart>
+    <lpageart>$(article.EndPage)</lpageart>
+    <authors>
+      ..$(article.AutorsRu; "\n"; DoAutorRu)
+    </authors>
+    <arttitles>
+      <arttitle lang="RUS">$(article.HeadingRu)</arttitle>
+    </arttitles>
+    <fpdf>$(article.FileName).PDF</fpdf>
+  </article>
+  #>}
+  
+  DoAutorRu(autor : string) : string {<#
+  <individInfo lang="RUS">
+    <surname>$(autor)</surname>
+    <fname></fname>
+    <auwork></auwork>
+    <auinf></auinf>
+  </individInfo>
+  #>}
+}
