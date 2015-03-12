@@ -208,7 +208,7 @@ module Program
       def resultText = result.ToString();
       File.WriteAllText("issue.xml", resultText, Text.Encoding.Unicode);
       def rincTemplateFileName = "02364964_TEMPLATE_unicode.xml";
-      def rincTemplate = File.ReadAllText(rincTemplateFileName, Text.Encoding.Unicode);
+      def rincTemplate = File.ReadAllText(rincTemplateFileName, Text.Encoding.UTF8);
       def dateTime     = DateTime.Now;
       def dateTimeText = dateTime.ToString("yyyy-MM-dd_HH:mm:ss");
       def rincText     = rincTemplate.Replace("{content}", resultText).Replace("{date-time}", dateTimeText);
