@@ -22,7 +22,7 @@ namespace MetadataAnalyzer
   /// </summary>
   public partial class MainForm : Form
   {
-    mutable _path : string = @"C:\!\Jur\BH\BH-2013-";
+    mutable _path : string = @"D:\!\Jur\BH\BH-2013-";
   
     public this()
     {
@@ -113,7 +113,7 @@ namespace MetadataAnalyzer
       def template = <#
     <html>
       <head>
-        <title> Оформляем сообщения красиво  - RSDN</title>
+        <title>Список информации публикациям</title>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge"> 
         <meta name="application-name" content="RSDN">

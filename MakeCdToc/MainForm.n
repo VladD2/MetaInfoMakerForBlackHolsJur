@@ -1,4 +1,5 @@
 ﻿using Nemerle.Collections;
+using Nemerle.Imperative;
 using Nemerle.Text;
 using Nemerle.Xml;
 using Nemerle.Utility;
@@ -46,10 +47,31 @@ namespace MakeCdToc
         def rincXmlFileName = $"02364964_$(_yearTextBox.Text)_-_$(_numTextBox.Text)_unicode.xml";
         def sourceRincXmlPath = IO.Path.Combine(sourcePath, rincXmlFileName);
         def destinationRincXmlPath = IO.Path.Combine(_destPathTextBox.Text, $@"BH-$(_yearTextBox.Text)-$(_numTextBox.Text)\CD\PDF", rincXmlFileName);
-        IO.File.Copy(sourceRincXmlPath, destinationRincXmlPath, true);
+        
+        def source      = IO.Path.GetFullPath(sourceRincXmlPath.ToLowerInvariant());
+        def destination = IO.Path.GetFullPath(destinationRincXmlPath.ToLowerInvariant());
+        
+        when (source != destination)
+        {
+          def dir = IO.Path.GetDirectoryName(destinationRincXmlPath);
+          unless (IO.Directory.Exists(dir))
+            _ = IO.Directory.CreateDirectory(dir);
+          IO.File.Copy(sourceRincXmlPath, destinationRincXmlPath, true);
+        }
+          
         def html = MakeTocHtml(issueXmlPath);
         //root.Save(_destPathTextBox.Text);
-        IO.File.WriteAllText(_outputFilePathTextBox.Text, html, Encoding.UTF8);
+        def tocPath = IO.Path.GetFullPath(_outputFilePathTextBox.Text);
+        IO.File.WriteAllText(tocPath, html, Encoding.UTF8);
+        
+        def htmlRUS = MakeKPressSiteHtml(issueXmlPath, "RUS");
+        def htmlENG = MakeKPressSiteHtml(issueXmlPath, "ENG");
+        def path = IO.Path.GetDirectoryName(tocPath);
+        def enc1251 = Encoding.GetEncoding(1251);
+        IO.File.WriteAllText(IO.Path.Combine(path, "..", "TocRus.html"), htmlRUS, enc1251);
+        IO.File.WriteAllText(IO.Path.Combine(path, "..", "TocEng.html"), htmlENG, enc1251);
+        _ = htmlRUS;
+        _ = htmlENG;
         HideError();
         _ = MessageBox.Show(this, "HTML-файл с содержанием журнала успешно сохранет!");
       }
@@ -80,7 +102,7 @@ namespace MakeCdToc
       
       def articles = doc.Root.Descendants("article");
       def sections = articles.Descendants("section").Distinct(Comparer()).OrderBy(a => int.Parse(a.Attribute("num").Value)).ToList();
-      def g = articles.GroupBy(a => (a.Element("section").Value, int.Parse(a.Element("section").Attribute("num").Value)));
+      def g = articles.GroupBy(a => (a.Element("section")?.Value, int.Parse(a.Element("section")?.Attribute("num")?.Value ?? "0")));
       def makeArticleRef(article : XElement) : string
       {
         //article.Attribute("lang")?.Value == "RUS")?.Value
@@ -139,6 +161,124 @@ $<#<html>
 #>
     }
   
+    MakeKPressSiteHtml(sorcePath : string, lang : string) : string
+    {
+      def doc = XDocument.Load(sorcePath);
+      
+      def articles = doc.Root.Descendants("article");
+      def sections = articles.Descendants("section").Distinct(Comparer()).OrderBy(a => int.Parse(a.Attribute("num").Value)).ToList();
+      def g = articles.GroupBy(a => (a.Element("section")?.Value, int.Parse(a.Element("section")?.Attribute("num")?.Value ?? "0")));
+      def isLangEng : bool = lang == "ENG";
+      def makeArticleRef(article : XElement) : string
+      {
+        //article.Attribute("lang")?.Value == "RUS")?.Value
+        
+        def makeInfo(lang : string) : string
+        {
+          def autors = article.Descendants("author").ToArray();
+          when (autors.Length == 0)
+            return "";
+          def makeAutors(autors : array[XElement], lang : string) : string
+          {
+            def makeAutor(autor : XElement, lang : string)
+            {
+              def individInfo = autor.Descendants("individInfo").FirstOrDefault(t => t.Attribute("lang")?.Value == lang);
+              if (individInfo == null)
+                if (lang == "ENG")
+                  makeAutor(autor, "RUS")
+                else
+                  "<<Отсуствует автор>>"
+              else
+              {
+                def surname = individInfo.Element("surname")?.Value;
+                def fname   = individInfo.Element("fname")?.Value;
+                $"$surname, $fname"
+              }
+            }
+            //def s = if (autors.Length > 1) "ы" else "";
+            def prefix1 = if (lang == "ENG") "Author" else "Автор";
+            def prefix2 = if (lang == "ENG") "Authors" else "Авторы";
+            if (autors.Length == 1)
+              $"<b>$prefix1:</b> " + makeAutor(autors[0], lang)
+            else
+              $<# <b>$prefix2:</b> ..$(autors; "; "; makeAutor(_, lang)) #>
+          }
+          def getTitle(lang : string) : string { article.Descendants("arttitle").FirstOrDefault(t => t.Attribute("lang")?.Value == lang)?.Value }
+          def title = getTitle(lang) ?? (if (lang == "ENG") getTitle("RUS") else $<#<<Отсуствует заголовок "$lang">>#>);
+          def getKeyWords(article : XElement, lang : string) : string
+          {
+            def keyWords = article.Descendants("kwdGroup").FirstOrDefault(t => t.Attribute("lang")?.Value == lang);
+            if (keyWords == null)
+              if (lang == "ENG")
+                getKeyWords(article, "RUS");
+              else
+                if (isLangEng) "No keywords" else "Ключевые слова отсутствуют"
+            else
+            {
+              def keyWordsPrefix = if (isLangEng) "Keywords" else "Ключевые слова";
+              def strs = keyWords.Elements().Select(x => x.Value.Trim());
+              $<# <b>$keyWordsPrefix:</b> ..$strs #>
+            }
+          }
+          def getAbstract(article : XElement, lang : string) : string
+          {
+            def tag = article.Descendants("abstract").FirstOrDefault(t => t.Attribute("lang")?.Value == lang);
+            if (tag == null)
+              if (lang == "ENG")
+                getAbstract(article, "RUS");
+              else
+                if (isLangEng) "No abstract" else "Ключевые слова отсутствуют"
+            else
+            {
+              def prefix = if (isLangEng) "Abstract" else "Аннотация";
+              def strs = tag.Value.Trim();
+              $<#
+                  <b>$prefix:</b>
+                    <blockquote>
+                      $strs
+                    </blockquote>
+                #>
+            }
+          }
+          
+          $<#
+              <div>
+                <hr>
+                <h4>$title</h4>
+                <blockquote>
+                  $(makeAutors(autors, lang))<br>
+                  $(getKeyWords(article, lang))<br>
+                  $(getAbstract(article, lang))<br>
+                </blockquote>
+              </div>
+          #>
+        }
+        
+        makeInfo(lang)
+      }
+      
+      if (isLangEng || g.Count() == 1)
+      {
+        def body = g.Select(x => $<#..$(x; "\r\n"; makeArticleRef)#>);
+          
+        $<# ..$(body; Environment.NewLine) #>
+      }
+      else
+      {
+        def toc = sections.Select(s => $<#<A href="#SECTION$(s.Attribute("num").Value)"><B>$(s.Value)</B></A><BR>#>);
+        def body = g.Select(x => $<#<A name="SECTION$(x.Key[1])"></A><H2>$(x.Key[0])</H2>
+          ..$(x; "\r\n"; makeArticleRef)
+        #>);
+          
+        $<#
+          <DIV style="margin-left:2em">
+            ..$(toc; Environment.NewLine)
+          </DIV>
+          ..$(body; Environment.NewLine)
+        #>
+      }
+    }
+    
     private _yearTextBox_TextChanged (_sender : object,  _e : System.EventArgs) : void
     {
       mutable res;
