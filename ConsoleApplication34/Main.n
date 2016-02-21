@@ -9,6 +9,7 @@ using System.IO.Path;
 using System.IO.Directory;
 using System.Linq;
 using System.IO.FileAttributes;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -164,10 +165,21 @@ module Program
             _ = late doc.PrintOut(Background = false);
           }
         }
+        catch
+        {
+          | e is TargetInvocationException =>
+            Console.ForegroundColor = ConsoleColor.Red;
+            WriteLine(e.InnerException.Message);
+            Console.ResetColor();
+          | e =>
+            Console.ForegroundColor = ConsoleColor.Red;
+            WriteLine(e.Message);
+            Console.ResetColor();
+        }
         finally 
         {
-          unless (forTestOnly)
-            _ = late _app.ActivePrinter = activePrinter;
+          //unless (forTestOnly)
+          //  _ = late _app.ActivePrinter = activePrinter;
           _ = late(doc.Undo());
           _ = late doc.Close(Word.WdSaveOptions.wdDoNotSaveChanges);
           _ = Marshal.ReleaseComObject(doc);
