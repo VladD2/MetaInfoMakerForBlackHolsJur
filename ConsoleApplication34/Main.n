@@ -151,10 +151,12 @@ module Program
       
       foreach (file when !(File.GetAttributes(file) %&& Hidden) in files with i)
       {
-        def doc = late (_app.Documents.Open(file, ReadOnly=true, AddToRecentFiles=false, Visible=true)) :> Word.Document;
+        def doc = late (_app.Documents.Open(file, ReadOnly=false, AddToRecentFiles=false, Visible=true)) :> Word.Document;
         mutable activePrinter = null;
         try 
         { 
+          _ = late doc.AttachedTemplate = @"c:\Шаблоны\ЧерныеДыры.dot";
+          _ = late doc.UpdateStylesOnOpen = true;
           makeMetaForArticle(doc, i > 1 && i < files.Length - 1);
 
           unless (forTestOnly)
@@ -166,10 +168,13 @@ module Program
         }
         finally 
         {
-          unless (forTestOnly)
-            _ = late _app.ActivePrinter = activePrinter;
-          _ = late(doc.Undo());
-          _ = late doc.Close(Word.WdSaveOptions.wdDoNotSaveChanges);
+          //unless (forTestOnly)
+          //  _ = late _app.ActivePrinter = activePrinter;
+          //doc.Save();
+          //_ = late(doc.Undo());
+
+          _ = late doc.Close(Word.WdSaveOptions.wdSaveChanges);
+          //CloseWordDoc(doc, true);
           _ = Marshal.ReleaseComObject(doc);
         }
       }
@@ -227,6 +232,21 @@ module Program
     _ = ReadLine();
     
   }
+  
+  public static CloseWordDoc(wordDocument : object, canSaveChange : bool) : void
+  {
+      when (wordDocument != null)
+      {
+          mutable missing = System.Reflection.Missing.Value;
+          mutable saveChanges : object = null;
+          if (canSaveChange)
+            saveChanges = Word.WdSaveOptions.wdSaveChanges;
+          else
+            saveChanges = Word.WdSaveOptions.wdDoNotSaveChanges;
+          def wordDoc = wordDocument :> Word.Document;
+          wordDoc.Close(ref saveChanges, ref missing, ref missing);
+      }
+  }  
 }
 
   module LateEx

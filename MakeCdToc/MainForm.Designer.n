@@ -49,7 +49,7 @@ namespace MakeCdToc
       this._pathTextBox.Name = "_pathTextBox";
       this._pathTextBox.Size = System.Drawing.Size(512,  20);
       this._pathTextBox.TabIndex = 0;
-      this._pathTextBox.Text = "C:\\!\\Automation\\MetaInfoMakerForBlackHolsJur\\ConsoleApplication34\\bin\\Debug\\issue.xml";
+      this._pathTextBox.Text = "..\\..\\..\\ConsoleApplication34\\bin\\Debug\\issue.xml";
       // 
       // _makeButton
       // 

@@ -59,7 +59,7 @@ namespace MetadataAnalyzer
       this._pathTextBox.Name = "_pathTextBox";
       this._pathTextBox.Size = System.Drawing.Size(1005,  20);
       this._pathTextBox.TabIndex = 1;
-      this._pathTextBox.Text = "C:\\!\\Jur\\BH\\BH-2015-";
+      this._pathTextBox.Text = "D:\\!\\Jur\\BH\\BH-2016-";
       // 
       // _tabControl
       // 

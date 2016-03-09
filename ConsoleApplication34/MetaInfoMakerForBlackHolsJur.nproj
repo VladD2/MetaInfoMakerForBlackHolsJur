@@ -52,6 +52,7 @@
     <Reference Include="Microsoft.Office.Interop.Word, Version=11.0.0.0, Culture=neutral, PublicKeyToken=71e9bce111e9429c">
       <Name>Microsoft.Office.Interop.Word</Name>
       <AssemblyName>Microsoft.Office.Interop.Word.dll</AssemblyName>
+      <HintPath>libs\Microsoft.Office.Interop.Word.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />

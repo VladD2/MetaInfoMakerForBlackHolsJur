@@ -47,8 +47,12 @@ namespace MetadataAnalyzer
         when (File.Exists(Path.Combine(_path, @"CD\DOC", result)))
           return result;
         
-        def result2 = Path.ChangeExtension(fileName, ".docx");
-        assert2(File.Exists(Path.Combine(_path, @"CD\DOC", result2)));
+        mutable result2 = Path.ChangeExtension(fileName, ".docx");
+        def fullPath = Path.Combine(_path, @"CD\DOC", result2);
+        if (File.Exists(fullPath))
+          result2 = fullPath;
+        else 
+          result2 = result;
         result2
       }
       def gerUrlFromArticle(author : XElement) : string
@@ -59,7 +63,7 @@ namespace MetadataAnalyzer
       {
         pdfUrlTDoc(author.Parent.Parent.Element("fpdf")?.Value)
       }
-      def doc = XDocument.Load(@"C:\!\Automation\MetaInfoMakerForBlackHolsJur\ConsoleApplication34\bin\Debug\issue.xml");
+      def doc = XDocument.Load(@"..\..\..\ConsoleApplication34\bin\Debug\issue.xml");
       def authors  = doc.Root.Elements("article").Elements("authors").Elements("author").NToArray();
       def articles = doc.Root.Elements("article").NToArray();
 
@@ -176,11 +180,22 @@ namespace MetadataAnalyzer
     {
       when (e.ColumnIndex == Url.Index && e.RowIndex >= 0)
       {
-        def row = _grid.Rows[e.RowIndex];
-        def cell = row.Cells[Url.Index];
-        def url = cell.Value?.ToString() ?? "";
-        _ = Diagnostics.Process.Start(Path.Combine(_path, @"CD\DOC", url));
+        mutable fullPath = "???";
+        try
+        {
+          def row = _grid.Rows[e.RowIndex];
+          def cell = row.Cells[Url.Index];
+          def url = cell.Value?.ToString() ?? "";
+          fullPath = Path.Combine(_path, @"CD\DOC", url);
+          _ = Diagnostics.Process.Start(fullPath);
+        }
+        catch { e => ShowError(e.Message + "\r\n File path: '" + fullPath + "'"); }
       }
+    }
+    
+    private ShowError(msg : string) : void
+    {
+      _ = MessageBox.Show(this, msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
     }
     
     private OnKeyPress(_sender : object, e : KeyEventArgs) : void
@@ -188,7 +203,8 @@ namespace MetadataAnalyzer
       when (e.KeyCode == Keys.Return)
       {
         _path = _pathTextBox.Text;
-        DoWork();
+        try DoWork();
+        catch { e => ShowError(e.Message) }
       }
     }  
   
