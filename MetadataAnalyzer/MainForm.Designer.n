@@ -176,6 +176,7 @@ namespace MetadataAnalyzer
       this.Name = "MainForm";
       this.Text = "Metadata Analyzer";
       this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
+      this.FormClosing += System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
       this.Load += System.EventHandler(this.MainForm_Load);
       this._tabControl.ResumeLayout(false);
       this._errorsTabPage.ResumeLayout(false);

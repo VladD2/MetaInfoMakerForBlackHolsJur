@@ -22,12 +22,15 @@ namespace MetadataAnalyzer
   /// </summary>
   public partial class MainForm : Form
   {
+    _settings : Settings;
     mutable _path : string = @"D:\!\Jur\BH\BH-2013-";
   
     public this()
     {
       InitializeComponent();
-      _path = _pathTextBox.Text;
+      _settings           = Settings.Default;
+      _path               = _settings.Path;
+      _pathTextBox.Text   = _path;
       _pathTextBox.KeyUp += OnKeyPress;
     }
   
@@ -63,6 +66,7 @@ namespace MetadataAnalyzer
       {
         pdfUrlTDoc(author.Parent.Parent.Element("fpdf")?.Value)
       }
+      _grid.Rows.Clear();
       def doc = XDocument.Load(@"..\..\..\ConsoleApplication34\bin\Debug\issue.xml");
       def authors  = doc.Root.Elements("article").Elements("authors").Elements("author").NToArray();
       def articles = doc.Root.Elements("article").NToArray();
@@ -216,5 +220,11 @@ namespace MetadataAnalyzer
     private mutable _authorInfoTabPage : System.Windows.Forms.TabPage;
   
     private mutable _webBrowser : System.Windows.Forms.WebBrowser;
+  
+    private MainForm_FormClosing (sender : object,  e : System.Windows.Forms.FormClosingEventArgs) : void
+    {
+      _settings.Path = _path;
+      _settings.Save();
+    }
   }
 }

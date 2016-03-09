@@ -81,6 +81,14 @@
       <DependentUpon>MainForm.n</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="app.config">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Properties\Settings.settings">
+      <SubType>Content</SubType>
+    </Content>
+  </ItemGroup>
   <Import Project="$(Nemerle)\Nemerle.MSBuild.targets" />
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it. 
