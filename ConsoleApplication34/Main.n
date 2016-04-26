@@ -63,8 +63,8 @@ module Program
     def jurYear = res.Groups[1].Value;
     def jurNum  = res.Groups[2].Value;
     
-    unless (forTestOnly)
-      Translit.TransliterateDir(path);
+    //unless (forTestOnly)
+    //  Translit.TransliterateDir(path);
       
     def articles = SCG.List();
     mutable prevLastPage = 0;//Constants.FirstPageNumber - 1;
