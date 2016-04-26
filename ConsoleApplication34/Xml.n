@@ -2,6 +2,7 @@
 using Nemerle.Collections;
 using Nemerle.Text;
 using Nemerle.Utility;
+using System.Net.Mail;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using Nemerle.Imperative;
@@ -148,7 +149,28 @@ module Xml
                 def m2 = regEx.Match(str);
                 when (m2.Success)
                 {
-                  tagValueMap[tagName] = m2.Groups[1].Value.Trim(array[' ', '.']);
+                  mutable value = m2.Groups[1].Value.Trim(array[' ', '.', ';', ',']);
+                  when (prefix == "e-mail")
+                  {
+                    try
+                    {
+                      using (mail = MailMessage())
+                      {
+                        mail.From = MailAddress("vc@rsdn.ru");
+                        value = value.Replace("    ", "").Replace("   ", "").Replace("  ", "").Replace(" ", "").Replace(" ", "");
+                        mail.To.Add(value);
+                      }
+                    }
+                    catch
+                    {
+                      e =>
+                      Console.ForegroundColor = ConsoleColor.Red;
+                      Console.WriteLine($"File $(article.FileName).doc содержит некотректный e-mail: '$value'. Error message: $(e.Message).");
+                      Console.ResetColor();
+                    }
+                  }
+                  
+                  tagValueMap[tagName] = value;
                   if (lang == "RUS") autorInfo[tagId].Rus++;
                   else               autorInfo[tagId].Eng++;
                 }
