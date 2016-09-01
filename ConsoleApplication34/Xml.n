@@ -158,6 +158,9 @@ module Xml
                       {
                         mail.From = MailAddress("vc@rsdn.ru");
                         value = value.Replace("    ", "").Replace("   ", "").Replace("  ", "").Replace(" ", "").Replace(" ", "");
+                        def mailToPrefix = <#HYPERLINK"mailto:#>;
+                        when (value.StartsWith(mailToPrefix))
+                          value = value.Substring(mailToPrefix.Length, value.Length - mailToPrefix.Length - 1);
                         mail.To.Add(value);
                       }
                     }

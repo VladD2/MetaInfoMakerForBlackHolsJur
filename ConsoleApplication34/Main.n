@@ -158,7 +158,12 @@ module Program
         { 
           _ = late doc.AttachedTemplate = @"c:\Шаблоны\ЧерныеДыры.dot";
           _ = late doc.UpdateStylesOnOpen = true;
-          makeMetaForArticle(doc, i > 1 && i < files.Length - 1);
+          def isArticle = i > 1 && i < files.Length - 1 || (i == files.Length - 1 && !file.EndsWith("Requirements.doc") && !file.EndsWith("Trebovanija.doc"));
+          when (!isArticle)
+          {
+            assert2(true);
+          }
+          makeMetaForArticle(doc, isArticle);
 
           unless (forTestOnly)
           {
