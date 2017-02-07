@@ -1,11 +1,14 @@
-﻿using System;
-using Nemerle.Collections;
+﻿using Nemerle.Collections;
+using Nemerle.Imperative;
 using Nemerle.Text;
 using Nemerle.Utility;
+
+using System;
+using System.Linq;
 using System.Net.Mail;
-using System.Xml.Linq;
 using System.Text.RegularExpressions;
-using Nemerle.Imperative;
+using System.Xml.Linq;
+
 using SCG = System.Collections.Generic;
 using Tag = System.Xml.Linq.XElement;
 using Attr = System.Xml.Linq.XAttribute;
@@ -37,15 +40,15 @@ module Xml
   
   this()
   {
-    AddRx("Место работы",        "auwork", 0);
-    AddRx("Место учебы",         "auwork", 1);
-    AddRx("Адрес",               "auadr",  2);
+    AddRx("Место работы",        "orgName", 0);
+    AddRx("Место учебы",         "orgName", 1);
+    AddRx("Адрес",               "address", 2);
     
-    AddRx("Place of employment", "auwork", 0);
-    AddRx("Place of study",      "auwork", 1);
-    AddRx("Address",             "auadr",  2);
+    AddRx("Place of employment", "orgName", 0);
+    AddRx("Place of study",      "orgName", 1);
+    AddRx("Address",             "address", 2);
     
-    AddRx("e-mail",              "auemail", 3);
+    AddRx("e-mail",              "email",   3);
   }
 
   _keywordsRemoveRx : Regex = Regex(
@@ -72,9 +75,10 @@ module Xml
     def articleToXml(article : Article) : XElement
     {
       def file = article.FileName;
+      //assert2(file != "BH_2016_6_12.00.12_00_Ключникова");
       def tag = Tag("article", array[
-        Tag("fpageart", article.StartPage),
-        Tag("lpageart", article.EndPage),
+        Tag("pages", article.StartPage + "-" + article.EndPage),
+        Tag("artType", "RAR"),
         ]);
         
       def remPrefix(prefix, str : string)
@@ -118,7 +122,7 @@ module Xml
           foreach ((ruAutor, enAutor) in autorsZip)
           {
             index++;
-            def autor = authors.AddTag("author", Attr("authornum", index));
+            def autor = authors.AddTag("author", Attr("num", index));
             def autorInfo = array[AutorInfoRecord(), AutorInfoRecord(), AutorInfoRecord(), AutorInfoRecord()];
 
             def addAutor(autorStr : string, lang : string) : void
@@ -138,13 +142,22 @@ module Xml
                 return;
               def inf   = autor.AddTag("individInfo", Attr("lang", lang));
               def name  = trim(m.Groups[1].Value);
-              def auinf = trim(m.Groups[2].Value.TrimStart(array[',', ' ', '.']));
+              def otherInfo = trim(m.Groups[2].Value.TrimStart(array[',', ' ', '.']));
               
               def tagValueMap = Hashtable();
               
+              def space = name.IndexOf(' ');
+              def surname  = if (space < 1) name else name.Substring(0, space);
+              def initials = if (space < 1) ""   else name.Substring(space).Trim();
+
+              inf.Add(Tag("surname", surname));
+              
+              //unless (initials.IsEmpty())
+              inf.Add(Tag("initials",  initials));
+
               def addTag(prefix) : void
               {
-                def str = auinf;
+                def str = otherInfo;
                 def (tagName, regEx, tagId) = _regExs[prefix];
                 def m2 = regEx.Match(str);
                 when (m2.Success)
@@ -173,7 +186,7 @@ module Xml
                     }
                   }
                   
-                  tagValueMap[tagName] = value;
+                  tagValueMap[tagName] = (value, tagId);
                   if (lang == "RUS") autorInfo[tagId].Rus++;
                   else               autorInfo[tagId].Eng++;
                 }
@@ -191,23 +204,16 @@ module Xml
                 addTag("Place of employment");
                 addTag("Address");
               }
-
-              addTag("e-mail");
-              
-              def space = name.IndexOf(' ');
-              def surname = if (space < 1) name else name.Substring(0, space);
-              def fname   = if (space < 1) "" else name.Substring(space).Trim();
-
-              inf.Add(Tag("surname", surname));
-              
-              unless (fname.IsEmpty())
-                inf.Add(Tag("fname",  fname));
-
-              unless (auinf.IsEmpty())
-                inf.Add(Tag("auinf",  auinf));
                 
-              foreach ((key, val) when !val.IsEmpty() in tagValueMap.KeyValuePairs)
+              addTag("e-mail");
+
+              def tags = tagValueMap.KeyValuePairs.OrderBy((_, (_, tagId)) => tagId).ToArray();
+              
+              foreach ((key, (val, _tagId)) when !val.IsEmpty() in tags)
                 inf.Add(Tag(key, val));
+
+              unless (otherInfo.IsEmpty())
+                inf.Add(Tag("otherInfo",  otherInfo));
             }
             
             unless (ruAutor.IsEmpty())
@@ -241,30 +247,24 @@ module Xml
         {
           throw ApplicationException($"Критическая ошибка! В файле $(article.FileName).doc не задан заголовок на русском языке.");
         }
-        def arttitles = tag.AddTag("arttitles");
-        arttitles.AddTag2("arttitle", Attr("lang", "RUS"), trimNum(article.HeadingRu));
+        def artTitles = tag.AddTag("artTitles");
+        artTitles.AddTag2("artTitle", Attr("lang", "RUS"), trimNum(article.HeadingRu));
         unless (article.HeadingEn.IsEmpty())
-          arttitles.AddTag2("arttitle", Attr("lang", "ENG"), trim(article.HeadingEn));
+          artTitles.AddTag2("artTitle", Attr("lang", "ENG"), trim(article.HeadingEn));
       }
-      def makeSection()
+      def makeText()
       {
-        when (!string.IsNullOrWhiteSpace(article.Section))
-        {
-          tag.AddTag2("section", XAttribute("num", article.SectionNum), trimNum(article.Section));
-        }
+        tag.AddTag2("text", Attr("lang", "RUS"), article.Text);
       }
       def makeLit()
       {
         def refs = SCG.List(article.LiteratureListRu);
-        //refs.AddRange(article.LiteratureListEn);
         
-        if (refs.IsEmpty())
-          tag.AddTag2("nobiblist", "");
-        else
+        when (!refs.IsEmpty())
         {
-          def biblist = tag.AddTag("biblist");
-          foreach (blistpart in refs)
-            biblist.AddTag2("blistpart", trim(blistpart));
+          def references = tag.AddTag("references");
+          foreach (reference in refs)
+            references.AddTag2("reference", trim(reference));
         }
       }
       def makeAbstract()
@@ -329,29 +329,40 @@ module Xml
       }
       makeAutors();
       makeTitles();
-      makeSection();
       makeAbstract();
+      makeText();
       makeKeywords();
       makeLit();
-      tag.AddTag2("fpdf", article.FileName + ".pdf");
+      tag.AddTag("files").AddTag2("file", article.FileName + ".pdf");
         
       tag
     }
-    def xml = articles.Map(articleToXml);
+    def xml = SCG.List.[XElement]();
+    def sections = articles.GroupBy(a => a.Section);
+    foreach (section in sections)
+    {
+      xml.AddTag("section").AddTag2("secTitle", XAttribute("lang", "RUS"), section.Key);
+      
+      foreach (article in section)
+        xml.Add(articleToXml(article));
+    }
+    // articles.Map(articleToXml);
     def firstPage = articles.NFirst().StartPage;
-    def lastArticle = articles.NLast();
-    def lastPage  = lastArticle.StartPage + lastArticle.PagesCount - 1;
+    def lastArticle = articles.Last(a => a.IsArticle);
+    //def lastPage  = lastArticle.StartPage + lastArticle.PagesCount - 1;
+    def lastPage = lastArticle.EndPage;
     def root = XElement.Parse($<#
     <issue>
-      <issn>0236-4964</issn>
-      <jrncode jcountry="ru">02364964</jrncode>
-      <jnumUni>$jurNum</jnumUni>
-      <jdateUni>$jurYear</jdateUni>
+      <number>$jurNum</number>
+      <part>1</part>
+      <dateUni>$jurYear</dateUni>
       <pages>$firstPage-$lastPage</pages>
+      <articles>
+      </articles>
     </issue>
     #>);
     
-    root.Add(xml.ToArray());
+    root.Element("articles").Add(xml.ToArray());
     root
   }
 }

@@ -66,6 +66,7 @@ module Program
     //unless (forTestOnly)
     //  Translit.TransliterateDir(path);
       
+    def textBuilder = Text.StringBuilder(1024);
     def articles = SCG.List();
     mutable prevLastPage = 0;//Constants.FirstPageNumber - 1;
     mutable section = "";
@@ -77,11 +78,16 @@ module Program
       
       def article = Article();
       
+      article.IsArticle = isArticle;
+      
       when (isArticle)
         articles.Add(article);
         
       article.FileName = GetFileNameWithoutExtension(doc.Name);
-      
+
+      textBuilder.Length = 0;
+      mutable isReview = false;
+
       when (isArticle)
       foreach (p :> Word.Paragraph in doc.Paragraphs)
       {
@@ -91,34 +97,40 @@ module Program
         foreach (c in BadChars)
           _ = sb.Replace(c, ' ');
 
-        def text = sb.ToString().Trim('\n', '\r', '\t', ' ');
+        def paragraphText = sb.ToString().Trim('\n', '\r', '\t', ' ');
         
         match (style)
         {
-          | "Заголовок 2" | "Heading 2" => article.HeadingRu = text;
+          | "Заголовок 2" | "Heading 2" => article.HeadingRu = paragraphText;
           | "Заголовок 1" | "Heading 1" =>
-            def curText = text.Trim();
+            def curText = paragraphText.Trim();
             when (!string.IsNullOrEmpty(curText))
             {
               sectionNum++;
               section = curText;
             }
             
-          | "Heading 2 En"              => article.HeadingEn = text;
-          | "AutorRu"          => article.AutorsRu.Add(text);
-          | "AutorEn"          => article.AutorsEn.Add(text);
-          | "AnnotationRu"     => article.AnnotationRu .Add(text);
-          | "AnnotationEn"     => article.AnnotationEn.Add(text);
-          | "KeywordsRu"       => article.KeywordsRu = text;
-          | "KeywordsEn"       => article.KeywordsEn = text;
-          | "LiteratureListRu" => article.LiteratureListRu.Add(text);
-          //| "LiteratureListEn" => article.LiteratureListEn.Add(text);
-          | _ => ()
+          | "Heading 2 En"     => article.HeadingEn = paragraphText;
+          | "AutorRu"          => article.AutorsRu.Add(paragraphText);
+          | "AutorEn"          => article.AutorsEn.Add(paragraphText);
+          | "AnnotationRu"     => article.AnnotationRu .Add(paragraphText);
+          | "AnnotationEn"     => article.AnnotationEn.Add(paragraphText);
+          | "KeywordsRu"       => article.KeywordsRu = paragraphText;
+          | "KeywordsEn"       => article.KeywordsEn = paragraphText;
+          | "LiteratureListRu" => article.LiteratureListRu.Add(paragraphText);
+          | _ when string.IsNullOrEmpty(paragraphText) || isReview => ()
+          | _ =>
+            if (paragraphText.Equals("рецензия") || paragraphText.Equals("отзыв"))
+              isReview = true;
+            else 
+              _ = textBuilder.AppendLine(paragraphText);
         }
         
         article.Section    = section;
         article.SectionNum = sectionNum;
       }
+      
+      article.Text = textBuilder.ToString();
       
       def calcPagest(doc)
       {
@@ -135,6 +147,7 @@ module Program
         article.PagesCount = pages;
         article.EndPage = prevLastPage + pages;
         prevLastPage = article.EndPage;
+        assert2(article.EndPage - article.StartPage == article.PagesCount - 1);
         
         doc.Sections.First.Headers
           .Item(Word.WdHeaderFooterIndex.wdHeaderFooterFirstPage)
@@ -150,7 +163,7 @@ module Program
     {
       def files = Util.GetDocFiles(path);
       
-      foreach (file when !(File.GetAttributes(file) %&& Hidden) in files with i)
+      foreach (file in files with i)
       {
         def doc = late (_app.Documents.Open(file, ReadOnly=false, AddToRecentFiles=false, Visible=true)) :> Word.Document;
         mutable activePrinter = null;
@@ -158,11 +171,18 @@ module Program
         { 
           _ = late doc.AttachedTemplate = @"c:\Шаблоны\ЧерныеДыры.dot";
           _ = late doc.UpdateStylesOnOpen = true;
-          def isArticle = i > 1 && i < files.Length - 1 || (i == files.Length - 1 && !file.EndsWith("Requirements.doc") && !file.EndsWith("Trebovanija.doc"));
-          when (!isArticle)
+          def fileCount = files.Length;
+          def isLastFile(i) : bool
           {
-            assert2(true);
+            i == fileCount - 1
           }
+          def isExt(file : string, ext : string) : bool { file.EndsWith(ext, StringComparison.InvariantCultureIgnoreCase) }
+          def isArticle = i > 1 && !isLastFile(1) || (isLastFile(1) && !isExt(file, "Requirements.doc") && !isExt(file, "Trebovanija.doc"));
+          if (isArticle)
+            assert2(!isExt(file, "_title.doc") && !isExt(file, "_titul.doc") && !isExt(file, "_TOC.doc") && !isExt(file, "Trebovanija.doc") && !isExt(file, "Requirements.doc"));
+          else
+            assert2(isExt(file, "_title.doc") || isExt(file, "_titul.doc") || isExt(file, "_TOC.doc") || isExt(file, "Trebovanija.doc") || isExt(file, "Requirements.doc"));
+            
           makeMetaForArticle(doc, isArticle);
 
           unless (forTestOnly)
@@ -201,8 +221,6 @@ module Program
       when (articles2.IsEmpty())
         throw ApplicationException("Не найдено ни одной статьи!");
       
-      articles2.Last().EndPage = articles2.Last().StartPage + 1;
-        
       def result = Xml.MakeXml(articles2, jurYear, jurNum);
       
       /// Проверяет не содержится ли в ХМЛ ошибок приводящих к 
@@ -233,7 +251,10 @@ module Program
       def rincTemplate = File.ReadAllText(rincTemplateFileName, Text.Encoding.UTF8);
       def dateTime     = DateTime.Now;
       def dateTimeText = dateTime.ToString("yyyy-MM-dd_HH:mm:ss");
-      def rincText     = rincTemplate.Replace("{content}", resultText).Replace("{date-time}", dateTimeText);
+      def rincText     = rincTemplate
+                          .Replace("{cntArticle}", articles2.Count.ToString())
+                          .Replace("{content}", resultText)
+                          .Replace("{date-time}", dateTimeText);
       def rincFileName = $"02364964_$(jurYear)_-_$(jurNum)_unicode.xml";
       File.WriteAllText(rincFileName, rincText, Text.Encoding.Unicode);
     }
@@ -249,21 +270,6 @@ module Program
     _ = ReadLine();
     
   }
-  
-  public static CloseWordDoc(wordDocument : object, canSaveChange : bool) : void
-  {
-      when (wordDocument != null)
-      {
-          mutable missing = System.Reflection.Missing.Value;
-          mutable saveChanges : object = null;
-          if (canSaveChange)
-            saveChanges = Word.WdSaveOptions.wdSaveChanges;
-          else
-            saveChanges = Word.WdSaveOptions.wdDoNotSaveChanges;
-          def wordDoc = wordDocument :> Word.Document;
-          wordDoc.Close(ref saveChanges, ref missing, ref missing);
-      }
-  }  
 }
 
   module LateEx

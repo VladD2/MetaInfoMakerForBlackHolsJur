@@ -37,26 +37,4 @@ module Translit
   
     sb.ToString()
   }
-  
-  public TransliterateDir(path : string) : void
-  {
-    WriteLine($@"---- Transliterate files in '$path' ----");
-    
-    def files = Util.GetDocFiles(path);
-    
-    foreach (file when !(File.GetAttributes(file) %&& Hidden) in files)
-    {
-      def name = GetFileName(file);
-      def dir = GetDirectoryName(file);
-      def newName = Transliterate(name);
-      when (name != newName)
-      {
-        def newFilePath = Combine(dir, newName);
-        WriteLine($"$file  -> $newName");
-        File.Move(file, newFilePath);
-      }
-    }
-    
-    WriteLine("------------------------------------------------------------------");
-  }
 }

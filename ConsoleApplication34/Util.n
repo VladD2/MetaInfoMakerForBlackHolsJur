@@ -3,6 +3,7 @@ using Nemerle.Text;
 using Nemerle.Utility;
 
 using System;
+using System.IO;
 using System.IO.Directory;
 using System.IO.Path;
 using System.Linq;
@@ -20,6 +21,13 @@ public module Util
   public IsEmpty[T](this lst : SCG.IList[T]) : bool
   {
     lst.Count == 0
+  }
+  
+  public AddTag(this parent : SCG.List[XElement], name : string, params args : array[object]) : XElement
+  {
+    def tag = XElement(name, args);
+    parent.Add(tag);
+    tag
   }
   
   public AddTag(this parent : XElement, name : string, params args : array[object]) : XElement
@@ -41,9 +49,16 @@ public module Util
   
   public GetDocFiles(path : string) : array[string]
   {
+    def isNotHidden(file : string) : bool
+    {
+      def attrs = File.GetAttributes(file);
+      def result = attrs %&& FileAttributes.Hidden;
+      !result
+    }
+    
     def docs   = GetFiles(path, "*.doc");
     def docxs  = GetFiles(path, "*.docx");
-    def result = docs.Concat(docxs).Distinct().OrderBy(x => GetFileNameWithoutExtension(x)).ToArray();
+    def result = docs.Concat(docxs).Where(isNotHidden).OrderBy(x => GetFileNameWithoutExtension(x)).ToArray();
     result
   }
 }

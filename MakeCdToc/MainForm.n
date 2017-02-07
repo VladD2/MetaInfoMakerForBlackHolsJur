@@ -106,8 +106,8 @@ namespace MakeCdToc
       def makeArticleRef(article : XElement) : string
       {
         //article.Attribute("lang")?.Value == "RUS")?.Value
-        def title = article.Descendants("arttitle").FirstOrDefault(t => t.Attribute("lang")?.Value == "RUS")?.Value;
-        def url   = article.Element("fpdf")?.Value;
+        def title = article.Descendants("artTitle").FirstOrDefault(t => t.Attribute("lang")?.Value == "RUS")?.Value;
+        def url   = article.Element("files")?.Element("file")?.Value;
         $<#<P><A href="PDF/$url">$title</A></P>#>
       }
       def toc = sections.Select(s => $<#<A href="#SECTION$(s.Attribute("num").Value)"><B>$(s.Value)</B></A><BR>#>);
@@ -161,13 +161,34 @@ $<#<html>
 #>
     }
   
+    [Record]
+    class Section
+    {
+      public Num   : int;
+      public Title : string;
+      [RecordIgnore]
+      public Articles : List[XElement] = List();
+    }
+    
     MakeKPressSiteHtml(sorcePath : string, lang : string) : string
     {
       def doc = XDocument.Load(sorcePath);
       
-      def articles = doc.Root.Descendants("article");
-      def sections = articles.Descendants("section").Distinct(Comparer()).OrderBy(a => int.Parse(a.Attribute("num").Value)).ToList();
-      def g = articles.GroupBy(a => (a.Element("section")?.Value, int.Parse(a.Element("section")?.Attribute("num")?.Value ?? "0")));
+      def articles = doc.Root.Descendants("articles");
+      def sections = List();
+      mutable sectionNum = 0;
+      mutable section = Section(sectionNum, "");
+      
+      foreach (row in articles.Elements())
+      {
+        if (row.Name == "section")
+          sections.Add({section = Section(sectionNum, row.Element("secTitle").Value); sectionNum++; section});
+        else if (row.Name == "article")
+          section.Articles.Add(row);
+        else
+          assert2(false, "Unexpected teg " + row.Name);
+      }
+      
       def isLangEng : bool = lang == "ENG";
       def makeArticleRef(article : XElement) : string
       {
@@ -190,9 +211,9 @@ $<#<html>
                   "<<Отсуствует автор>>"
               else
               {
-                def surname = individInfo.Element("surname")?.Value;
-                def fname   = individInfo.Element("fname")?.Value;
-                $"$surname, $fname"
+                def surname  = individInfo.Element("surname")?.Value;
+                def initials = individInfo.Element("initials")?.Value;
+                $"$surname, $initials"
               }
             }
             //def s = if (autors.Length > 1) "ы" else "";
@@ -203,7 +224,7 @@ $<#<html>
             else
               $<# <b>$prefix2:</b> ..$(autors; "; "; makeAutor(_, lang)) #>
           }
-          def getTitle(lang : string) : string { article.Descendants("arttitle").FirstOrDefault(t => t.Attribute("lang")?.Value == lang)?.Value }
+          def getTitle(lang : string) : string { article.Descendants("artTitle").FirstOrDefault(t => t.Attribute("lang")?.Value == lang)?.Value }
           def title = getTitle(lang) ?? (if (lang == "ENG") getTitle("RUS") else $<#<<Отсуствует заголовок "$lang">>#>);
           def getKeyWords(article : XElement, lang : string) : string
           {
@@ -231,7 +252,7 @@ $<#<html>
             else
             {
               def prefix = if (isLangEng) "Abstract" else "Аннотация";
-              def strs = tag.Value.Trim();
+              def strs = tag.Value.Trim().Replace("\r\n", "\n").Replace("\n", "<br>\r\n");
               $<#
                   <b>$prefix:</b>
                     <blockquote>
@@ -240,6 +261,14 @@ $<#<html>
                 #>
             }
           }
+          def getPages(article : XElement, lang : string) : string
+          {
+            def pages = article.Descendants("pages").FirstOrDefault()?.Value;
+            if (lang == "ENG")
+              $<# <b>Pages:</b> $pages #>
+            else
+              $<# <b>Страницы:</b> $pages #>
+          }
           
           $<#
               <div>
@@ -247,6 +276,7 @@ $<#<html>
                 <h4>$title</h4>
                 <blockquote>
                   $(makeAutors(autors, lang))<br>
+                  $(getPages(article, lang))<br>
                   $(getKeyWords(article, lang))<br>
                   $(getAbstract(article, lang))<br>
                 </blockquote>
@@ -257,17 +287,17 @@ $<#<html>
         makeInfo(lang)
       }
       
-      if (isLangEng || g.Count() == 1)
+      if (isLangEng)
       {
-        def body = g.Select(x => $<#..$(x; "\r\n"; makeArticleRef)#>);
-          
+        def body = sections.Select(s => $<#..$(s.Articles; "\r\n"; makeArticleRef)
+        #>);          
         $<# ..$(body; Environment.NewLine) #>
       }
       else
       {
-        def toc = sections.Select(s => $<#<A href="#SECTION$(s.Attribute("num").Value)"><B>$(s.Value)</B></A><BR>#>);
-        def body = g.Select(x => $<#<A name="SECTION$(x.Key[1])"></A><H2>$(x.Key[0])</H2>
-          ..$(x; "\r\n"; makeArticleRef)
+        def toc = sections.Select(s => $<#<A href="#SECTION$(s.Num)"><B>$(s.Title)</B></A><BR>#>);
+        def body = sections.Select(s => $<#<A name="SECTION$(s.Num)"></A><H2>$(s.Title)</H2>
+          ..$(s.Articles; "\r\n"; makeArticleRef)
         #>);
           
         $<#

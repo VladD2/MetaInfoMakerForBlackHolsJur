@@ -37,13 +37,63 @@ namespace MetadataAnalyzer
     private MainForm_Load (_sender : object,  _e : EventArgs) : void
     {
     }
-    
+
     private DoWork() : void
     {
       def gerRusInfo(author : XElement, lang : string) : XElement
       {
         author.Elements("individInfo").FirstOrDefault(x => x.Attribute("lang")?.Value == lang)
       }
+      _grid.Rows.Clear();
+      def doc = XDocument.Load(@"..\..\..\ConsoleApplication34\bin\Debug\issue.xml");
+      def authors  = doc.Root.Descendants("article").Elements("authors").Elements("author").NToArray();
+      def articles = doc.Root.Descendants("article").NToArray();
+
+      def addAuthorError(lang : string, tag : string, rusInfo : string, enuInfo : string) : void
+      {
+        def text =
+          if (lang == "RUS") 
+            rusInfo
+          else 
+            enuInfo;
+          def authorWoAuwork = authors.Where(a => gerRusInfo(a, lang)?.Element(tag) == null);
+          foreach (author in authorWoAuwork)
+          {
+            if (author.Parent.Elements("author").All(a => gerRusInfo(a, lang)?.Element(tag) == null))
+              _ = _grid.Rows.Add(text, GerUrlFromAuthor(author), gerRusInfo(author, lang));
+            else
+            {
+              ();
+            }
+          }
+      }
+      def addAuthorWoAuwork(lang : string) : void
+      {
+        addAuthorError(lang, "orgName", <#Автор без Места работы:#>,
+                                        <#Автор без Place of employment:#>)
+      }
+      def addAuthorWoEmail(lang : string) : void
+      {
+        addAuthorError(lang, "email", <#Отсутствует "E-mail" в русских метаданных#>,
+                                      <#Отсутствует "E-mail" в английских метаданных"#>)
+      }
+      
+      addAuthorWoAuwork("RUS");
+      addAuthorWoAuwork("ENG");
+
+      addAuthorWoEmail("RUS");
+      addAuthorWoEmail("ENG");
+      
+      foreach (article when article.Element("nobiblist") != null in articles)
+        _ = _grid.Rows.Add("Нет списка литературы", GerUrlFromArticle(article), article);
+      
+      _grid.Sort(Url, ComponentModel.ListSortDirection.Ascending);
+      
+      FillAuthorInfos(authors);
+    }
+
+    GerUrlFromArticle(article : XElement) : string
+    {
       def pdfUrlTDoc(fileName : string) : string
       {
         def result = Path.ChangeExtension(fileName, ".doc");
@@ -58,65 +108,17 @@ namespace MetadataAnalyzer
           result2 = result;
         result2
       }
-      def gerUrlFromArticle(author : XElement) : string
-      {
-        pdfUrlTDoc(author.Element("fpdf")?.Value)
-      }
-      def gerUrlFromAuthor(author : XElement) : string
-      {
-        pdfUrlTDoc(author.Parent.Parent.Element("fpdf")?.Value)
-      }
-      _grid.Rows.Clear();
-      def doc = XDocument.Load(@"..\..\..\ConsoleApplication34\bin\Debug\issue.xml");
-      def authors  = doc.Root.Elements("article").Elements("authors").Elements("author").NToArray();
-      def articles = doc.Root.Elements("article").NToArray();
-
-      def addAuthorError(lang : string, tag : string, rusInfo : string, enuInfo : string) : void
-      {
-        def text =
-          if (lang == "RUS") 
-            rusInfo
-          else 
-            enuInfo;
-          def authorWoAuwork = authors.Where(a => gerRusInfo(a, lang)?.Element(tag) == null);
-          foreach (author in authorWoAuwork)
-          {
-            if (author.Parent.Elements("author").All(a => gerRusInfo(a, lang)?.Element(tag) == null))
-              _ = _grid.Rows.Add(text, gerUrlFromAuthor(author), gerRusInfo(author, lang));
-            else
-            {
-              ();
-            }
-          }
-      }
-      def addAuthorWoAuwork(lang : string) : void
-      {
-        addAuthorError(lang, "auwork", <#Автор без Место работы:#>,
-                                       <#Автор без Place of employment:#>)
-      }
-      def addAuthorWoEmail(lang : string) : void
-      {
-        addAuthorError(lang, "auemail", <#Отсутствует "E-mail" в русских метаданных#>,
-                                        <#Отсутствует "E-mail" в английских метаданных"#>)
-      }
-      
-      addAuthorWoAuwork("RUS");
-      addAuthorWoAuwork("ENG");
-
-      addAuthorWoEmail("RUS");
-      addAuthorWoEmail("ENG");
-      
-      foreach (article when article.Element("nobiblist") != null in articles)
-        _ = _grid.Rows.Add("Нет списка литературы", gerUrlFromArticle(article), article);
-      
-      _grid.Sort(Url, ComponentModel.ListSortDirection.Ascending);
-      
-      FillAuthorInfos(authors);
+      pdfUrlTDoc(article.Element("files")?.Element("file")?.Value)
+    }
+    
+    GerUrlFromAuthor(author : XElement) : string
+    {
+      GerUrlFromArticle(author.Parent.Parent)
     }
     
     FillAuthorInfos(authors : array[XElement]) : void
     {
-      def html = XElement("table");
+      def html = XElement("table", XAttribute("border", 1), XAttribute("style", "border-collapse: collapse;"), XAttribute("cellspacing", 2), XAttribute("cellpadding", 5));
 
       def template = <#
     <html>
@@ -127,7 +129,7 @@ namespace MetadataAnalyzer
         <meta name="application-name" content="RSDN">
         <meta name="msapplication-tooltip" content="Russian Software Developer Network">
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-        <link rel="stylesheet"  type="text/css" href="http://rsdn.ru/css/article.css" />
+        <link rel="stylesheet"  type="text/css" href="http://rsdn.org/css/article.css" />
       </head>
       <body>
         {content}
@@ -137,14 +139,17 @@ namespace MetadataAnalyzer
 
       def header = XElement("tr");
       header.Add(XElement("th", "surname"));
-      header.Add(XElement("th", "fname"));
-      header.Add(XElement("th", "auwork"));
-      header.Add(XElement("th", "auemail"));
-      header.Add(XElement("th", "auinf"));
+      header.Add(XElement("th", "initials"));
+      header.Add(XElement("th", "orgName"));
+      header.Add(XElement("th", "email"));
+      header.Add(XElement("th", "otherInfo"));
       
-      foreach (author in authors)
+      foreach (author in authors with i)
       {
         def tr = XElement("tr");
+        
+        def bkColor = if (i % 2 == 0) null else XAttribute("style", "background-color: White;");
+        
         def article = author.Parent.Parent;
         def inf = author.Elements("individInfo").FirstOrDefault(inf => inf.Attribute("lang")?.Value == "RUS");
         if (inf == null)
@@ -154,18 +159,18 @@ namespace MetadataAnalyzer
         }
         else
         {
-          tr.Add(XElement("td", inf.Element("surname")?.Value : object ?? XElement("b", "<<Не задан!>>")));
-          tr.Add(XElement("td", inf.Element("fname")  ?.Value : object ?? XElement("b", "<<Не задан!>>")));
-          tr.Add(XElement("td", inf.Element("auwork") ?.Value : object ?? XElement("b", "<<Не задан!>>")));
-          tr.Add(XElement("td", inf.Element("auemail")?.Value : object ?? XElement("b", "<<Не задан!>>")));
-          tr.Add(XElement("td", inf.Element("auinf")  ?.Value : object ?? XElement("b", "<<Не задан!>>")));
+          tr.Add(XElement("td", inf.Element("surname")  ?.Value : object ?? XElement("b", "<<Не задан!>>"), bkColor));
+          tr.Add(XElement("td", inf.Element("initials") ?.Value : object ?? XElement("b", "<<Не задан!>>"), bkColor));
+          tr.Add(XElement("td", inf.Element("orgName")  ?.Value : object ?? XElement("b", "<<Не задан!>>"), bkColor));
+          tr.Add(XElement("td", inf.Element("email")    ?.Value : object ?? XElement("b", "<<Не задан!>>"), bkColor));
+          tr.Add(XElement("td", inf.Element("otherInfo")?.Value : object ?? XElement("b", "<<Не задан!>>"), bkColor));
         }
-        def title = article.Element("arttitles").Elements("arttitle").FirstOrDefault(inf => inf.Attribute("lang")?.Value == "RUS")?.Value;
-        tr.Add(XElement("td", title));
-        def pdf = article.Element("fpdf")?.Value;
-        tr.Add(XElement("td", pdf));
-        def biblistLen = article.Element("biblist")?.Elements("blistpart")?.Count();
-        tr.Add(XElement("td", if (biblistLen > 0) biblistLen : object else XElement("b", 0)));
+        def title = article.Element("artTitles").Elements("artTitle").FirstOrDefault(inf => inf.Attribute("lang")?.Value == "RUS")?.Value;
+        tr.Add(XElement("td", title, bkColor));
+        def pdf = article.Element("files")?.Element("file")?.Value;
+        tr.Add(XElement("td", pdf, bkColor));
+        def biblistLen = article.Element("references")?.Elements("reference")?.Count();
+        tr.Add(XElement("td", if (biblistLen > 0) biblistLen : object else XElement("b", 0), bkColor));
         
         html.Add(tr);
       }
@@ -221,7 +226,7 @@ namespace MetadataAnalyzer
   
     private mutable _webBrowser : System.Windows.Forms.WebBrowser;
   
-    private MainForm_FormClosing (sender : object,  e : System.Windows.Forms.FormClosingEventArgs) : void
+    private MainForm_FormClosing (_sender : object,  _e : System.Windows.Forms.FormClosingEventArgs) : void
     {
       _settings.Path = _path;
       _settings.Save();

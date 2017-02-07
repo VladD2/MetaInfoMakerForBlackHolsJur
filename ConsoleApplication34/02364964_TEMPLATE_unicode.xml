@@ -1,11 +1,18 @@
 ﻿<?xml version="1.0" standalone="no" ?>
-<journals>
-  <opercard>
+<journal xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="JournalArticulus.xsd">
+  <operCard>
     <operator>
       Чистяков|Владислав Юрьевич
     </operator>
     <date>{date-time}</date>
+    <cntArticle>{cntArticle}</cntArticle>
+    <cntNode>0</cntNode>
     <cs>1020454</cs>
-  </opercard>
+  </operCard>
+  <titleid>7639</titleid>
+  <issn>0236-4964</issn>
+  <journalInfo lang="RUS">
+    <title>"Черные дыры" в Российском Законодательстве</title>
+  </journalInfo>
   {content}
-</journals>
+</journal>

@@ -22,5 +22,6 @@ class Article
   public KeywordsRu       : string { get; set; }
   public KeywordsEn       : string { get; set; }
   public LiteratureListRu : SCG.List[string] = SCG.List();
-  //public LiteratureListEn : SCG.List[string] = SCG.List();
+  public Text             : string { get; set; }
+  public IsArticle        : bool  { get; set; }
 }
