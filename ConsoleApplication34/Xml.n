@@ -354,7 +354,6 @@ module Xml
     def root = XElement.Parse($<#
     <issue>
       <number>$jurNum</number>
-      <part>1</part>
       <dateUni>$jurYear</dateUni>
       <pages>$firstPage-$lastPage</pages>
       <articles>
