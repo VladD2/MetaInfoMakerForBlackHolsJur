@@ -120,7 +120,7 @@ module Program
           | "LiteratureListRu" => article.LiteratureListRu.Add(paragraphText);
           | _ when string.IsNullOrEmpty(paragraphText) || isReview => ()
           | _ =>
-            if (paragraphText.Equals("рецензия") || paragraphText.Equals("отзыв"))
+            if (paragraphText.Equals("рецензия", StringComparison.InvariantCultureIgnoreCase) || paragraphText.Equals("отзыв", StringComparison.InvariantCultureIgnoreCase))
               isReview = true;
             else 
               _ = textBuilder.AppendLine(paragraphText);
